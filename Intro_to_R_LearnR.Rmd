@@ -1,0 +1,546 @@
+---
+title: "Advanced Survival"
+subtitle: "Introduction to R"
+author: "Maarit Laaksonen"
+date: "`r format(Sys.time(), '%Y')`"
+#output: html_document
+output:
+  learnr::tutorial
+runtime: shiny_prerendered
+---
+
+```{r setup, include=FALSE}
+
+# setting up a global default for the whole document to show the R code and not just the results
+knitr::opts_chunk$set(echo = TRUE)
+
+# required packages for examples - note that rmarkdown, knitr and learnr are also required 
+# package names
+packages <- c("rmarkdown", "knitr", "learnr", "tinytex", "dplyr", "magrittr", "skimr", "janitor", "ggplot2")
+# install packages not yet installed
+missing <- !packages %in% installed.packages()
+if (any(missing)) {
+  install.packages(packages[missing], repos="http://cran.r-project.org")
+}
+
+# loading the packages
+library(rmarkdown)
+library(knitr)
+library(learnr)
+library(tinytex)
+library(dplyr) # data wrangling functions (loads magrittr automatically)
+library(magrittr) # for piping "%>%"
+library(skimr) # functions for summarising data, e.g. skim()
+library(janitor) # functions for exploring data, e.g. tabyl()
+library(ggplot2) # data visualisation
+
+# preparation for exercises so that they imitate working on the R Console
+# where R remembers everything you have defined in that session
+x <- c(1,2,3,4,5)
+y = c(5,4,3,2,1)
+starwars_bysex <- arrange(starwars, sex, name)
+starwars_renamed <- rename(starwars, height_cm = height)
+starwars_renamed <- mutate(starwars_renamed, height_m = height_cm / 100)
+starwars_renamed <- mutate(starwars_renamed, BMI = mass / (height_m^2))
+starwars_renamed <- mutate(starwars_renamed, overweight = if_else(BMI >= 25, 1, 0))
+starwars_renamed <- mutate(starwars_renamed, BMI2 = factor(overweight,
+                           levels = c(0, 1),
+                           labels = c("normal weigth", "overweight")))
+
+# you can create categorical variables using the mutate() and case_when() functions
+starwars_renamed <- mutate(starwars_renamed, BMI3 = case_when(
+      (BMI >= 0) & (BMI < 25) ~ 'normal weight', 
+      (BMI >= 25) & (BMI < 30) ~ 'overweight', 
+      (BMI >= 30) ~ 'obese',
+      TRUE ~ 'NA'
+))
+starwars_saved <- starwars %>% 
+                    rename(height_cm = height) %>% 
+                    mutate(height_m = height_cm / 100) %>% 
+                    mutate(BMI = mass / (height_m^2)) %>% 
+                    mutate(overweight = if_else(BMI >= 25, 1, 0)) %>% 
+                    select(name, mass, height_m, BMI, overweight, everything())
+results <- lm(dist ~ speed, data = cars)
+
+```
+
+## 1. Introduction to R and RStudio
+
+In this tutorial, we will use the statistical programming language R to carry out analyses. RStudio allows you to run R in a more user-friendly environment. This is an introduction to R and RStudio and to the basic skills you need to complete the exercises.
+
+First, let's make sure you have the latest, or sufficiently up-to-date, versions of R and RStudio installed on your computer as you may not otherwise be able to install all the R packages needed for the course. 
+
+If you already have R and RStudio installed, check on to see the R version installed. You can view your R version in the start menu, in R Console when you first open R or Rstudio, or by typing `getRversion()` in  your R Console. 
+
+If you have an older version of R installed on your computer, it is recommended that you uninstall that version and then follow the steps below for installing R and RStudio. 
+
+The latest version of R is available from the Comprehensive R Archive Network (CRAN) webpage: [https://cran.r-project.org/](https://cran.r-project.org/). There are versions available for Windows, Linux, and Mac. 
+
+To install R on a PC click on “Download R for Windows”. You need to install the **base** system so click on “install R for the first time”. This will take you to a new window with the latest version of R. Click on “Download R 4.X.X for Windows” and follow the installation instructions. 
+
+To install R on a Mac click on “Download R for macOS” and download the R binary under “Latest release”. The file will have an extension of .pkg, for example, R-4.X.X.pkg. Click on this link and follow the instructions. 
+
+Please note that on Windows, R is typically installed under `C:/Program Files/R/`. However, if you do not have administrative privileges on your computer, you will not be able to write to the `/Program Files/` directory and this may cause difficulties when you are trying to install R packages later on. The easiest way to avoid this issue is to create a new installation location (e.g. `C:/Users/myname/R/`) and use it instead of the default `C:/Program Files/R/` when installing R. Further instructions are available from [https://rpubs.com/tomhopper/windows_nonadmin_install](https://rpubs.com/tomhopper/windows_nonadmin_install). Otherwise, default settings are OK.
+
+All R functions and many datasets are stored in *packages*. For example, a collection of 12 *base packages* are installed when the base distribution of R is downloaded from the CRAN webpage. Some other *recommended packages* are also automatically installed with the base system. If you already have R and RStudio installed, you can check for updates on the packages that you have already installed by typing `update.packages()` in your R Console. This may take several minutes and require use input.
+
+To install RStudio go to [https://rstudio.com/products/rstudio/download/](https://rstudio.com/products/rstudio/download/), scroll down and download the free RStudio Desktop, choosing the appropriate file for your operating system and following the prompts. When installing RStudio, remember to select the same new installation location as you did for R if not the default `C:/Program Files/R/`. If you may need to use RStudio on several different computers, you can install R and RStudio onto a USB stick and then you can use RStudio on any computer that reads your USB stick.
+
+Once you have successfully installed the latest versions of R and RStudio, navigate to the RStudio program in the start menu and launch the program. Once RStudio opens (it may take a little while) you should see three panels on your RStudio screen:
+
+* The big left panel is the *Console* where you can type commands and see output
+* The top right panel contains the tabs *Environment* and *History*. The *Environment* tab stores any object, value, function or anything else you create during your R session. The *History* tab keeps a record of all previous commands.
+* The bottom right panel contains the tabs *Files*, *Plots*, *Packages*, and *Help*. The *Files* tab shows all the files and folders in your working directory as if you were on a PC/Mac window. The *Plots* tab will show all your graphs. The *Packages* tab will show a list of packages or add-ons needed to run certain process. The *Help* tab provides additional info.
+
+You can think of R as a (very advanced) calculator. Try typing some basic mathematical calculations in the Console before moving on.
+
+
+## 2. R Markdown
+
+[R Markdown](https://rmarkdown.rstudio.com/) is a format for writing reproducible, dynamic reports with R. This is an R Markdown document that has been turned into an interactive introduction using the [learnr](https://cran.r-project.org/web/packages/learnr/learnr.pdf) package which we will cover in more detail below. We will be using similar interactive [R Learnr tutorials](https://blog.rstudio.com/2017/07/11/introducing-learnr/) to prepare you for some of the exercises. Your final data analysis report can also be prepared and returned as an R Markdown file, so let us practice creating one.
+
+First, you need to install the [rmarkdown](https://cran.r-project.org/web/packages/rmarkdown/index.html) package from CRAN. Packages not included with the `base` distribution (like `rmarkdown`) can be installed from within R. You can use the `install.packages()` function from the R Console window or by typing `install.packages("rmarkdown")`. 
+
+You can then create a new R Markdown file by clicking **File** > **New File** > **R Markdown** in the menu bar at the top of your RStudio screen. A window will open where you can enter a *Title* (e.g., My first R Markdown document) and *Author Name* (your name) and choose the desired *Output Format*. The default output format is *html* and we will start with that format. Then click OK.
+
+An example R Markdown file was created and opens up in R Studio above your R Console on the left. It has three parts:
+
+* **Header**: The text at the top of the document that begins and ends with three dashes `---` and includes four default elements
+  + **title**: The title of your document
+  + **author**: Who wrote the document
+  + **date**: By default, this is the date that the file was created
+  + **output**: What format will the output be in (in this case html)
+  
+* **R code chunks**: Chunks of R code that can be run and rendered to an output document (as explained below). All code chunks begin and end with three backticks (found on the same key as the tilde (~) on your keyboard) ` ``` `
+  + The first line contains the language (R) and the name of the chunk within curly brackets. You can also add options within the curly brackets to customise what code or output appears on the rendered output (e.g., the `echo = FALSE` will suppress the R code, note the code will still run and all output will be presented unless another option is used).
+  + The following lines are for the R code and comments (i.e., text that describes the intent of your code and is not processed by R, indicated by the `#` comment character at the beginning of a line).
+  
+* **R Markdown sections**: Text that describes and documents your workflow written using *R Markdown syntax*. Markdown is a human readable syntax for formatting text documents, similar to using the format tools (heading, bold) in a word processing tool like Microsoft Word or Google Docs, that can be transformed to web pages, PDFs or Word documents.
+
+You can save the example file that was created as usual by clicking **File** > **Save As** under a name of your choosing (note that the document title is not the same as the file name). R Markdown files have the extension **.Rmd** which will be associated with RStudio by default. 
+
+The R Markdown file including R code chunks can be converted to html (or another format) using the [knitr](https://yihui.org/knitr/) package. You can install the `knitr` package by typing `install.packages("knitr")` on the R Console. Typically, to use the *functions* and *datasets* contained in a package, that package must be loaded using the `library` function (e.g., `library(knitr)`. In RStudio, however, you can just click the <span style="color:green">**Knit**</span> button and it will automatically load the `rmarkdown` and `knitr` packages. RStudio will usually also automatically suggest installing the necessary packages for you when needed for the first time. In that case, a yellow message stating <span style="color:#F4D03F">*"Package 'package_name' required but is not installed"*</span> will appear above your R Markdown file and you can install it by clicking the <span style="color:green">**Install**</span> button next to the message. Using the functions from these packages, RStudio then executes the code chunks and converts the R Markdown file into the output format specified. When knitting is complete, an html format (web page) output, that was built from a combination of text documentation and R code that was written using R Markdown syntax, should automatically open. An **html** file has also been automatically saved to your working directory. If you cannot see the <span style="color:green">**Knit**</span> button, you can use the keyboard shortcut *Ctrl + Shift + K* (Windows/Linux) or *Cmd + Shift + K* (Mac). You can also always knit from the R console directly `rmarkdown::render("your_document_name.Rmd")`. Make sure you are in the directory where your .Rmd file is saved or provide the full path.  
+You might want to output your final data analysis report in *PDF* file format, and you can now practice creating and converting an R Markdown file into a PDF file. Note that you will need the [tinytex](https://yihui.org/tinytex/) package for helping compile the R Markdown file to PDF. You can install the TinyTex distribution by typing `tinytex::install_tinytex()` in the R Console and this will also install the actual TinyTex LaTeX program that you need. If you run into difficulties in converting your R Markdown file to PDF, <span style="color:red">an error message will appear in red</span> in your Console window with instructions on how to try to debug the error.
+
+Once you are familiar with the structure of the R Markdown document and the R Markdown syntax you can just open a new text file, save it with the extension .Rmd and produce your own R Markdown syntax instead of using the RStudio Markdown template. For example, you can just change the **output** option in your header from *html_document* into *pdf_document* if you want to convert your R Markdown file into a PDF instead of an html document.
+
+More examples of the most commonly used R Markdown syntax are provided at [https://rmarkdown.rstudio.com/authoring_basics.html](https://rmarkdown.rstudio.com/authoring_basics.html). You can also download an R Markdown *cheat sheet* by clicking **Help** > **Cheat Sheets** > **R Markdown Cheat Sheet**. You can also find cheat sheets for R packages [here](https://posit.co/resources/cheatsheets/).
+
+Have a go at trying some of the R Markdown options and syntax before moving on.
+
+
+## 3. R Learnr
+
+During this course we will prepare you for some of the exercises using the [R Learnr tutorials](https://blog.rstudio.com/2017/07/11/introducing-learnr/) which combine text, code and live coding boxes where you can practice your R coding. The R Learnr tutorials run as packages in RStudio, with the [learnr](https://cran.r-project.org/web/packages/learnr/learnr.pdf) package making it easy to turn any R Markdown document into an interactive tutorial. 
+
+**Note** you will need to have the package `learnr` installed before running the tutorials. You can practice installing this package now using the syntax provided before and this live coding box. You can run the code by clicking `Run Code`.
+
+```{r example, exercise=TRUE, exercise.eval=FALSE}
+
+
+```
+
+This document is also an R Learnr tutorial which you can now open in RStudio and have a closer look at.
+
+The R Learnr document differs from the R Markdown document in the following ways:
+
+1. In the **header**, you need to specify `output: learnr::tutorial` (instead of `output: html_document`) and `runtime: shiny_prerendered`.
+
+2. The first **R code chunk** is the setup section of our learnr tutorial, which for example includes code for checking whether all of the packages needed for the tutorial have been installed, prompting the installation of packages not installed, and loading all the necessary packages. You can use similar setup code for installing and loading the packages needed for your final data analysis report. The set up code also prepares the environment for the interactive exercises so that that they imitate working on the R Console where R remembers everything you have defined in that session, as otherwise R code written in separate coding boxes is not chained.
+
+3. The later **R code chunks** also have custom options such as `exercise` that allow the user to interact with the tutorial.
+
+You can run the Learnr tutorial by clicking the <span style="color:green">**Run Document**</span> button above the tutorial. This automatically loads the `learnr` package which will then turn it into an interactive tutorial which opens up in a new window.
+
+Next we will practice how to use the Learnr tutorial while learning some R basics that we will need later on. 
+
+
+## 4. R basics
+
+### 4.1. Objects and assignment
+
+R is an object-oriented language, which means that everything in R is an *object* and that analyses, models and graphs can be stored as objects.
+
+The most basic type of R object is a vector (note a scalar is a vector of length 1). Other objects include matrices, arrays, lists, factors, data frames and functions.
+
+To assign a value to an object use `<-` or `=`. For example, vectors `x` and `y` can be created as follows using the [c()](https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/c) function. You can run the code by clicking `Run Code`.
+
+```{r 1, exercise=TRUE, exercise.eval=FALSE}
+
+# c() function is used to concatenate elements together
+x <- c(1,2,3,4,5)
+x
+y = c(5,4,3,2,1)
+y
+
+```
+
+To find out the length of a vector, you can use the function [length()](https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/length):
+
+```{r 2, exercise=TRUE, exercise.eval=FALSE}
+
+length(x)
+
+```
+
+Vectors of sequential numbers can be built up using `:`, or
+[seq()](https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/seq), and [rep()](https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/rep) functions:
+
+```{r 3, exercise=TRUE, exercise.eval=FALSE}
+
+# : assigns consecutive integers
+x <- 1:5
+x
+y <- 5:1
+y
+
+# rev() function reverses the order of elements in a vector
+y <- rev(x)
+y
+
+# seq() function generates a sequence from the starting point of the sequence to the ending 
+# point for the sequence by given increment
+seq(from = 1, to = 5, by = 1)
+seq (1, 5, 1)
+
+# rep() function replicates elements
+rep(1, 5)
+rep(x, times=2)
+rep(x, each=2)
+
+```
+
+To learn more about vectors and how to create and use matrices, arrays, lists, factors, data frames and functions see the comprehensive web tutorial [Introduction to R](https://www.analyticssteps.com/blogs/r-programming-vector-functions) available from the CRAN webpage.
+
+You can now try creating a vector or another object using this live coding box. You can run your code by clicking `Run Code` and you can empty your coding box by clicking `Start Over`:
+
+```{r 4, exercise=TRUE, exercise.eval=FALSE}
+
+
+```
+
+If there is an error in the code, an error message will appear with a line number in the R coding box to help you diagnose the problem.
+
+Note that learnr remembers what you typed in the exercise boxes unless you click the `Start Over` button, either on top of a coding box (to reset that exercise) or under the main menu on the left hand side of this document (to reset all exercises). However, to make sure you do not lose your R code you can save your code by typing it in the space for R exercise code within the Learnr tutorial and saving a copy of the Learnr tutorial.
+
+
+### 4.2. Accessing data
+
+#### 4.2.1. Reading data from files
+
+As demonstrated above, small amounts of data can be entered using functions such as [c()](https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/c), [matrix()](https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/matrix) and [array()](https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/array). However, R is not very useful as a database or for data entry.
+
+Instead, it is usually better to use Excel (or another spreadsheet program) for inputting data, saved as a CSV file, which is then imported into R. First, save the data to your *working directory*. You can use the [getwd()](https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/getwd) function in the console to check what is your current working directory. If needed, you can use the [setwd()](https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/getwd) function to change your working directory to another folder on your computer. Note that R uses forward slash `/` or two backslashes `\\` instead of the backslash `\` in its path names. Alternatively, you can choose a working directory by navigating to **Session** > **Set Working Directory** > **Choose Directory** from your menu bar. You can then use the [read.csv()](https://www.rdocumentation.org/packages/qtl2/versions/0.32/topics/read_csv) function to read in a file from your working directory. Let us read in the data from the *lymphoma.csv* file. This data file is available for download on the provided [Github](https://github.com/NicoleDeLaMata/AdvancedSurvival/tree/main). You will need to amend the coding below to align to your file directory, remove the hashes before "lymphoma" to test the coding using direct file path and setting the working directory.
+
+Note that you can also read this file in directly from Github, as given below. We do, however, recommend you practice importing files directly from a folder location. 
+
+
+```{r 5, exercise=TRUE, exercise.eval=FALSE}
+
+# to get your working directory
+getwd()
+
+# Option 1 (Windows): read in the lymphoma.csv file using the read.csv() function and the full path name
+# lymphoma <- read.csv("//shared.sydney.edu.au/research-data/PRJ-Linked_data_course/Students/maaritlaaksonen/lymphoma.csv", header=T)
+# Option 1 (Mac): if you are using Mac then use this path name and code instead:
+# lymphoma <- read.csv("/Volumes/PRJ-Linked_data_course/Students/maaritlaaksonen/lymphoma.csv", header=T)
+
+# Option 2 (Windows): use the setwd() command to change your working directory
+# setwd("//shared.sydney.edu.au/research-data/PRJ-Linked_data_course/Students/maaritlaaksonen/")
+# Option 2 (Mac): if you are using Mac then use this path name and code instead:
+# setwd("/Volumes/PRJ-Linked_data_course/Students/maaritlaaksonen/")
+# read in the lymphoma.csv file using the read.csv() function
+# lymphoma <- read.csv("lymphoma.csv", header=T)
+
+#Option 3 (direct from Github)
+lymphoma <- read.csv("https://raw.githubusercontent.com/NicoleDeLaMata/AdvancedSurvival/refs/heads/main/lymphoma.csv", header=T)
+
+```
+
+Once you have read in your data file, you can use some of the following functions to familiarise yourself with it:
+
+```{r prepare-exercises}
+
+dataloc <- ifelse(Sys.info()["sysname"]=="Windows", # Determine if using Windows or Mac
+              "//shared.sydney.edu.au/research-data/PRJ-Linked_data_course/Students/maaritlaaksonen/", # Windows
+              "/Volumes/PRJ-Linked_data_course/Students/maaritlaaksonen/") # Mac
+lymphoma <- read.csv(file = file.path(dataloc, paste0("lymphoma", ".csv")))
+
+```
+
+```{r 6, exercise=TRUE, exercise.eval=FALSE, exercise.setup = "prepare-exercises"}
+
+# head() function returns the first rows of a data frame (six by default)
+head(lymphoma)
+
+# tail() function returns the last rows of a data frame, you can specify how many rows you 
+# want to see by adding n 
+tail(lymphoma, n=10)
+
+# nrow() function returns the number of rows
+nrow(lymphoma)
+
+# names() function returns the names of all the variables in the data set, and works also for 1-dimensional objects (vector, list)
+names(lymphoma)
+
+# for 2-dimensional objects that have a column dimension (matrix, data frame) you should however use the specific colnames() function
+colnames(lymphoma)
+
+# str() function returns the structure of the data set, i.e., data type of each attribute
+str(lymphoma)
+
+# summary() function returns a set of descriptive statistics depending on the type of variable
+summary(lymphoma)
+
+```
+
+To learn more about other ways of inputting data to R see the [Introduction to R](https://www.analyticssteps.com/blogs/r-programming-vector-functions).
+
+
+#### 4.2.2. R built-in datasets
+
+R also supplies hundreds of built-in datasets, both in the package `datasets` (installed with `base` distribution) and other available packages. To see the list of datasets currently available through all loaded packages, you can run `data()` command by clicking `Run Code`:
+
+```{r 7, exercise=TRUE, exercise.eval=FALSE}
+
+data()
+
+# you can use this command to see all the packages available in R
+data(package = .packages(all.available = TRUE))
+
+```
+
+For example, the dataset `cars` used in the R Markdown template is among the datasets readily available in R.
+
+Take a closer look at some of the datasets available by applying for example the [head()](https://www.rdocumentation.org/packages/utils/versions/3.6.2/topics/head), [tail()](https://www.rdocumentation.org/packages/rotations/versions/1.6.5/topics/tail), [nrow()](https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/nrow), [names()](https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/names), [str()](https://www.rdocumentation.org/packages/utils/versions/3.6.2/topics/str) and [summary()](https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/summary) functions presented above:
+
+```{r 8, exercise=TRUE, exercise.eval=FALSE}
+
+
+```
+
+### 4.3. Data manipulation
+
+#### 4.3.1. Dplyr package
+
+Before carrying out your data analysis, you often need to clean or transform data in preparation for your analysis. The [dplyr](https://cran.r-project.org/web/packages/dplyr/index.html) package is very useful for such data manipulation as it includes readily available functions for commonly required data manipulation tasks. 
+
+Functions in `dplyr` process faster than base R functions as they are written in a more computationally efficient manner. See below some examples of these functions using the `starwars` dataset available in the `dplyr` package. When carrying out your analysis, remember to first *install* and *load* the package `dplyr` (you can use the code available from the tutorial set up in the beginning of this tutorial).
+
+```{r 9, exercise=TRUE, exercise.eval=FALSE}
+
+# tibble() is a cross between the head() and str() functions
+tibble(starwars)
+
+# starwars dataset has 87 rows and 14 columns with each row describing a Star Wars character
+dim(starwars)
+
+# gives dimensions as above, variable type, and lists first few rows of obs
+glimpse(starwars)
+
+# filter() function allows to you filter or select a subset of rows in a data frame, e.g. 
+# all female Star Wars characters
+filter(starwars, sex == "female")
+
+# arrange() function rearranges the data frame rows, e.g., sort the rows by sex and name
+starwars_bysex <- arrange(starwars, sex, name)
+starwars_bysex
+
+# select() function allows you to select the variables that you are interested in, 
+# e.g., sex and name, so you do not have to scroll through all the columns in the data
+select(starwars_bysex, sex, name)
+
+# you can use the select() function together with the everything() function to place the 
+# variables you are interested in first while keeping all the variables in the data frame
+select(starwars_bysex, sex, name, everything())
+
+# rename() function allows you to rename variables, e.g. rename height as height_cm
+starwars_renamed <- rename(starwars, height_cm = height)
+
+# using select() to output name and height_cm first
+select(starwars_renamed, name, height_cm, everything())
+
+# mutate() function allows you to add new columns to the data frame that are functions 
+# of existing columns
+starwars_renamed <- mutate(starwars_renamed, height_m = height_cm / 100)
+starwars_renamed <- mutate(starwars_renamed, BMI = mass / (height_m^2))
+
+# using select() to output name, mass, height_cm and BMI first
+select(starwars_renamed, name, mass, height_m, BMI, everything())
+
+# summarise() function allows you to summarise data frame columns, e.g. to calculate 
+# a mean of BMI in the data
+
+# note that if the variable you want to summarise has missing values, you need to include 
+# the option 'na.rm=TRUE'
+summarise(starwars_renamed, mean(BMI, na.rm=TRUE))
+
+# you can create a dichotomous overweight variable using the mutate() and if_else() functions
+starwars_renamed <- mutate(starwars_renamed, overweight = if_else(BMI >= 25, 1, 0))
+
+# you can convert the numeric overweight variable to a factor variable using factor() function
+starwars_renamed <- mutate(starwars_renamed, BMI2 = factor(overweight,
+                           levels = c(0, 1),
+                           labels = c("normal weight", "overweight")))
+
+# you can create categorical variables using the mutate() and case_when() functions
+starwars_renamed <- mutate(starwars_renamed, BMI3 = case_when(
+      (BMI >= 0) & (BMI < 25) ~ 'normal weight', 
+      (BMI >= 25) & (BMI < 30) ~ 'overweight', 
+      (BMI >= 30) ~ 'obese',
+      TRUE ~ 'NA'
+))
+
+# alternatively you can use cut() and factor() functions
+starwars_renamed <- mutate(starwars_renamed, BMI3=cut(BMI,  # Create BMI3 based on cutting BMI at the specified break points
+                    breaks=c(0,25,30,Inf),
+                    right=FALSE), # We want the intervals to be closed on the left, e.g. 0 to <25
+                    BMI3=factor(BMI3,             # Convert BMI3 to a factor variable with the specified labels
+                       labels=c('normal weight',
+                                'overweight',
+                                'obese')))
+
+# using select() to output name, mass, height_cm, BMI, overweight and BMI3 variables first
+select(starwars_renamed, name, mass, height_m, BMI, overweight, BMI2, BMI3, everything())
+
+```
+
+
+#### 4.3.2. The pipe %>%
+
+All of the `dplyr` functions discussed above take a data frame as the first argument. The modified data frames are saved as intermediate objects that in turn are used by other `dplyr` functions. 
+
+There is, however, a more efficient way for chaining commands, called the **forward-pipe operator**, `%>%`, or simply the **pipe**, available from the [magrittr](https://cran.r-project.org/web/packages/magrittr/magrittr.pdf) package, and also automatically made available when you load `dplyr` package. This operator will forward or *pipe* a value or a result from one step into the next. See below how part of the code above can be simplified using the pipe:
+
+```{r 10, exercise=TRUE, exercise.eval=FALSE}
+
+# starwars_bysex <- arrange(starwars, sex, name)
+# starwars_bysex
+# select(starwars_bysex, sex, name, everything())
+
+# The commands above can be chained in the following way using %>%
+starwars %>% 
+  arrange(sex, name) %>% 
+  select(sex, name, everything())
+
+# starwars_renamed <- rename(starwars, height_cm = height)
+# starwars_renamed <- mutate(starwars_renamed, height_m = height_cm / 100)
+# starwars_renamed <- mutate(starwars_renamed, BMI = mass / (height_m^2))
+# starwars_renamed <- mutate(starwars_renamed, overweight = if_else(BMI >= 25, 1, 0))
+# select(starwars_renamed, name,  mass, height_m, BMI, overweight, everything())
+
+# The commands above can be chained in the following way using %>%
+starwars %>% 
+  rename(height_cm = height) %>% 
+  mutate(height_m = height_cm / 100) %>% 
+  mutate(BMI = mass / (height_m^2)) %>% 
+  mutate(overweight = if_else(BMI >= 25, 1, 0)) %>% 
+  select(name, mass, height_m, BMI, overweight, everything())
+
+# Remember that you need to assign the modified data frame into an object to be able to use it later on
+starwars_saved <- starwars %>% 
+                    rename(height_cm = height) %>% 
+                    mutate(height_m = height_cm / 100) %>% 
+                    mutate(BMI = mass / (height_m^2)) %>% 
+                    mutate(overweight = if_else(BMI >= 25, 1, 0)) %>% 
+                    select(name, mass, height_m, BMI, overweight, everything())
+
+```
+
+You can learn more about other functions available in `dplyr` and see examples of their use [here](https://www.rdocumentation.org/packages/dplyr/versions/0.7.8).
+
+Try using the `dplyr` functions and piping. You can, for example, try sorting the `starwars` data frame by the BMI variable created above or try applying some of the other functions to these data:
+
+```{r 11, exercise=TRUE, exercise.eval=FALSE}
+
+
+```
+
+
+### 4.4. Summarising data
+
+To summarise data using simple descriptive statistics, e.g., mean, SD, median, IQR, you can use the [summary()](https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/summary) function which comes with the `base` distribution. You can also the [skim()](https://www.rdocumentation.org/packages/skimr/versions/2.1.5/topics/skim) function from the [skimr()](https://cran.r-project.org/web/packages/skimr/vignettes/skimr.html) package:
+
+```{r 12, exercise=TRUE, exercise.eval=FALSE}
+
+# summarising BMI in the Starwars dataset
+
+# using the summary() function
+summary(starwars_saved$BMI)
+
+# using the skim() function
+skim(starwars_saved, BMI)
+
+```
+
+To create a frequency table for a categorical variable, you can for example use the [tabyl()](https://www.rdocumentation.org/packages/janitor/versions/2.2.1/topics/tabyl) function from the [janitor()](https://cran.r-project.org/web/packages/janitor/vignettes/janitor.html) package. It is a better version of the [table()](https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/table) function which comes with the `base` distribution.
+
+```{r 13, exercise=TRUE, exercise.eval=FALSE}
+
+# summarising BMI in the Starwars dataset
+tabyl(starwars_saved, overweight)
+
+```
+
+
+### 4.5. Data analysis and visualisation in R
+
+#### 4.5.1. Data analysis
+
+Analyses, models and graphs can also be stored as *objects* in R. For example, the following code fits a linear regression model for speed and distance variables in the `cars` data using the [lm()](https://www.rdocumentation.org/packages/stats/versions/3.6.2/topics/lm) function. The result is an `lm` object that is stored into the object named `results`:
+
+```{r 14, exercise=TRUE, exercise.eval=FALSE}
+
+# In R's formula notation where we have our outcome variable on the left hand side of the equation 
+# and the explanatory variables on the right hand side of the tilde.
+results <- lm(dist ~ speed, data = cars)
+results
+
+# summary() function provides more detailed information on the model's performance and coefficients
+summary(results)
+
+```
+
+#### 4.5.2. Data visualisation
+
+We can visualise the data and analysis results by creating histograms or boxplots using the [hist()](https://www.rdocumentation.org/packages/graphics/versions/3.6.2/topics/hist) 
+and [boxplot()]( https://www.rdocumentation.org/packages/graphics/versions/3.6.2/topics/boxplot) functions, or by creating a simple plot of the two variables using the [plot()](https://www.rdocumentation.org/packages/graphics/versions/3.6.2/topics/plot) function, available from `base` graphics, and adding a regression line to the plot:
+
+```{r 15, exercise=TRUE, exercise.eval=FALSE}
+
+# hist() function for histograms
+hist(cars$speed)
+hist(cars$dist)
+
+# boxplot() function
+boxplot(cars$speed)
+boxplot(cars$dist)
+
+# plot() function for plotting two variables
+plot(cars$speed, cars$dist)
+# adding a regression line to the plot
+abline(lm(dist ~ speed, data = cars))
+
+```
+
+We can also do the same visualisation using `ggplot()` function from the [ggplot2](https://cran.r-project.org/web/packages/ggplot2/ggplot2.pdf) package.
+
+```{r 16, exercise=TRUE, exercise.eval=FALSE}
+
+ggplot(cars, aes(x=speed, y=dist)) + geom_point(shape=1) + geom_smooth(method="lm")
+
+
+```
+
+
+### 4.6. Good programming practices
+
+We should learn and apply good programming practices to write R code that is as easy to read and replicate as possible.
+
+Good practices should be applied every time we write a program. Please use the following resources to familiarise yourself with good practices when writing a program in R:
+
+[R Tidyverse style guide](https://style.tidyverse.org).
+[R code - best practices](https://www.r-bloggers.com/2018/09/r-code-best-practices/)
+
+During this short course, we will make use of these R basics and gain practice in good coding as we learn how to analyse data using R.
+
