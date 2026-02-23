@@ -1,0 +1,46 @@
+project:
+  type: website
+
+website:
+  title: "Advanced Survival 2026"
+  sidebar:
+    title: "Advanced Survival 2026"
+    style: "docked"
+    search: true
+    contents:
+      - href: index.qmd
+        text: Home
+      - href: intro_R.qmd
+        text: Introduction to R
+      - section: "Day 1: Joint & parametric modelling"
+        href: OverviewD1.qmd
+        contents: 
+          - PH_assump.qmd
+          - Joint_model.qmd
+          - Parametric.qmd
+          - Flexible1.qmd
+          - nonlinear_Cox.qmd
+      - section: "Day 2: Flexible parametric & multi-state"
+        href: OverviewD2.qmd 
+        contents: 
+          - Competing.qmd
+          - Flexible2.qmd
+          - Multistate.qmd
+      - href: Resources.qmd
+        text: Resources      
+
+format:
+  html:
+    mathjax: true
+    theme: cosmo
+    tox: true
+    toc-depth: 3
+    css: styles.css
+    toc: true
+    embed-resources: true
+    code-summary: "Show R code"
+    code-fold: show
+    code-tools: true
+    number-sections: true
+editor: visual
+
