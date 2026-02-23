@@ -1,0 +1,32 @@
+---
+title: "Introduction to R"
+format: 
+  html:
+    embed-resources: true
+execute:
+  cache: false
+  freeze: false
+---
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+## Getting started with R
+
+If you have no experience in R, or your programming skills have become rusty, then we strongly recommend that you complete the below self-guided tutorial.
+
+You can carry out an interactive R Learnr self-guided tutorial that specifically prepares you for the assumed R skills for this short course. The R Learnr tutorial has four parts. You will need to install R and RStudio on your computer. 
+
+Once you have RStudio on your computer, you can download the interactive R Learnr tutorial [here](https://github.com/NicoleDeLaMata/AdvancedSurvival/blob/Coding/Intro_to_R_LearnR.Rmd). You can open it in RStudio and run it by clicking the Run Document button above the tutorial which will turn it into an interactive tutorial which opens up in a new window.
+
+Alternatively, you can access the interactive R Learnr tutorial completely online [here](https://nicoledelamata.shinyapps.io/Intro_to_R_AdvSurv/) or a static version of the tutorial is available [here](https://nicoledelamata.github.io/AdvancedSurvival/Intro_to_R_LearnR.html).
+
+Other useful resources included:
+
+[UCLA R learning modules](https://stats.oarc.ucla.edu/r/modules/)
+
+[Basic basics from RLadies](https://rladiessydney.org/courses/01-basicbasics-0)

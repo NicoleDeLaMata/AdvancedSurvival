@@ -1,0 +1,50 @@
+---
+title: "Day 2"
+format: 
+  html:
+    embed-resources: true
+toc: true
+toc-depth: 3
+---
+
+## Today's topics
+
+Welcome to Day 2 of the Advanced Survival Concepts and Analysis short course for 2026.
+
+In today's topics we will learn about:
+
+\- [Competing risks models](Competing.qmd)
+
+\- [Flexible parametric survival modelling (second lecture)](Flexible2.qmd)
+
+\- [Multi-state modelling](Multistate.qmd)
+
+We will cover the theorectical concepts and practical applications. You will also have take-home exercises to practise the concepts on data in your own time and at your own pace.
+
+We are building upon the advanced survival concepts and analysis we have covered in [Day 1](OverviewD1.qmd).
+
+## By the end of today
+
+We would expect you to have a working understanding of:
+
+-   Competing risks scenarios and modelling approaches
+
+-   Flexible parametric approaches to competing risks and other scenarios
+
+-   Constructing multi-state models and interpretation for more than two states and recurrent events
+
+## Extended concepts
+
+There are many further advanced survival concepts that are related or go beyond what we are able to cover in our short course. We encourage you to look at further [resources](Resources.qmd) or expand your knowledge these other concepts:
+
+-   Frailty survival models
+
+-   Hierarchical and mixture models
+
+-   Bayesian survival models
+
+-   Markov models
+
+-   Relative survival
+
+-   Causal techniques in survival

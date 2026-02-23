@@ -1,0 +1,2795 @@
+---
+title: "3 Parametric survival models"
+format: 
+  html:
+    embed-resources: true
+    code-overflow: wrap
+toc: true
+toc-depth: 3
+---
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+## What is a parametric survival model?
+
+A **parametric survival model** is one in which the survival time, $T$, is assumed 
+to follow a specific, known probability distribution
+
+$$T \sim f(t | \theta),$$
+
+where $f$ belongs to a known family (e.g., Exponential, Weibull).
+
+While the *family* of the distribution is assumed, the exact distribution remains 
+unknown until the vector of parameters $\theta$ is defined.
+
+We use observed data (including censored observations) to estimate these 
+parameters — typically via maximum likelihood estimation (MLE) — to best fit the 
+survival experience of the cohort.
+
+
+::: {.callout-note}
+
+Unlike the Cox Proportional Hazards model (which is semi-parametric), 
+parametric models require us to specify the shape of the underlying hazard.
+The hazard function $h(t)$ and survival function $S(t)$ are thus specified fully 
+by a set of parameters.
+
+:::
+
+## Why parametric survival models?
+
+**Flexibility vs. specification**
+
+The choice of a survival model often involves a trade-off between being "data-driven" 
+(flexible) and "model-driven" (specified).
+
+- **Non-parametric methods (e.g., Kaplan-Meier):** These make no assumptions about 
+the distribution of survival times. While flexible, they result in "step functions" 
+that are tied strictly to the observed event times.
+- **Semi-parametric methods (e.g., Cox proportional hazards model):** The Cox model 
+assumes proportional hazards but leaves the shape of the baseline hazard unspecified. 
+This makes it widely applicable and robust, but it cannot provide a full picture 
+of the hazard over time.
+- **Parametric models:** These assume a specific functional form (shape) for the 
+baseline hazard. While this requires more justification, it offers several powerful 
+advantages.
+
+**Key advantages of parametric models**
+
+- *Completeness:* Both the hazard function $h(t)$ and the survival function $S(t)$ 
+are fully specified for all values of $t$.
+- *Smoothness and continuity:* Unlike non-parametric step functions (which only
+change at the exact moment of an observed event), parametric models provide 
+**smooth, continuous functions**. This is often more consistent with 
+**biological theory**, where the underlying risk (hazard) of a disease usually 
+evolves continuously over time rather than in discrete jumps.
+- *Extrapolation:* Perhaps the most significant advantage is the 
+**ability to predict survival beyond the last observed event**. 
+- *Efficiency:* if the chosen distribution is a good fit for the data, parametric 
+models provide more **precise inferences** (narrower confidence intervals) than 
+semi-parametric models.
+
+## Common distributions in parametric survival models
+
+Distributions commonly used for parametric survival models include:
+
+- **Exponential:** Assumes a **constant hazard** over time (e.g., a speedometer 
+stuck at 100 km/h)
+- **Weibull:** A **monotonic hazard** that can either increase or decrease over 
+time (e.g., a car constantly accelerating or decelerating)
+- **Log-logistic/lognormal:** Useful for **unimodal non-monotic hazard** that 
+first increases and then decreases (e.g., recovery from surgery)
+- **Generalized gamma:** A flexible distribution that can accommodate 
+**various different hazard shapes** (constant, increasing, decreasing, unimodal, 
+bathtub)
+- **Gompertz:** Specifically useful for modeling human mortality where **hazard 
+increases exponentially** with age
+- **Piecewise exponential:** Acts as a bridge between parametric and Cox models. 
+Uses a step-function approach to modelling flexible hazards by assuming a constant
+hazard with pre-defined time intervals
+
+## Exponential distribution
+
+Suppose that the survival times of $n$ individuals, $t_1,t_2,…,t_n$ are assumed 
+to have an exponential distribution, then 
+
+$$f(t) = \lambda e^{-\lambda t}$$
+
+$$S(t) = P( > t) = \int_t^{\infty} f(u)du = \int_t^{\infty} \lambda e^{-\lambda u} = e^{-\lambda t}$$
+
+$$h(t) = \frac{f(t)}{S(t)} = \lambda, \text{a constant hazard rate}$$
+
+## Weibull distribution
+
+The constant hazard rate assumption underlying exponentially distributed survival 
+times can be unrealistic.
+
+The Weibull distribution allows more flexibility in the shape of the hazard function:
+
+$$h(t) = \lambda \gamma t^{\gamma-1}$$
+$$S(t) = \exp[-H(t)] = \exp[-\int_0^t h(u)du] = \exp(-\lambda t^\gamma)$$
+
+$$f(t) = h(t)S(t) = \lambda \gamma t^{\gamma-1} \exp(-\lambda t^\gamma),$$
+where $\lambda$ is the *scale* parameter and $\gamma$ is the *shape* parameter.
+
+The Weibull simplifies to the exponential when $\gamma = 1$
+
+The scale parameter determines the stretch or spread of the distribution along 
+the time axis, whereas the shape parameter determines if the hazard is increasing,
+decreasing, or constant. If you increase the scale parameter while keeping the 
+shape constant, you are essentially stretching the survival time, meaning the 
+event happens later on average. In terms of the speedometer analogy, if the shape
+is how the car accelerates, the scale is the gear the car is in, determining the 
+overall range of speeds possible.
+
+Weibull hazard, survival and probability density functions for different values
+of the shape parameter while assuming scale parameter is 1 are shown below:
+
+```{r,warning=FALSE}
+
+# make sure you have installed the tidyverse package
+# install.packages("tidyverse")
+# load the tidyverse package
+library(tidyverse) # we are using tidyverse tools such as the pipe (%>%) and dplyr
+
+# Weibull hazard, survival and probability density functions
+
+# assumes scale parameter is 1
+# four different values for the shape parameter: 0.1, 1, 2, 3
+data_weibull <- data.frame(expand.grid(Time = seq(0.01,2,0.01),
+                              Gamma = c(0.1, 1, 2, 3))) %>%
+  mutate(Hazard = Gamma*Time^(Gamma - 1),
+         Survival = exp(-Time^Gamma),
+         PDF = Gamma*Time^(Gamma - 1)*exp(-Time^Gamma),
+         c = recode_factor(Gamma, `0.1` = "gamma == 0.1", 
+                           `1` = "gamma == 1.0", 
+                           `2` = "gamma == 2", 
+                           `3` = "gamma == 3"))
+
+# Weibull hazard functions
+ggplot(data_weibull, aes(x=Time, y=Hazard, group=c)) +
+  geom_line(aes(linetype=c, color=c), linewidth = 0.8) +
+  labs(color = '', linetype = '') +
+  scale_colour_discrete(labels = scales::parse_format()) +
+  scale_linetype_discrete(labels = scales::parse_format()) +
+  theme_bw()
+
+# Weibull survival functions
+ggplot(data_weibull, aes(x=Time, y=Survival, group=c)) +
+  geom_line(aes(linetype=c, color=c), linewidth = 0.8) +
+  labs(color = '', linetype = '') +
+  scale_colour_discrete(labels = scales::parse_format()) +
+  scale_linetype_discrete(labels = scales::parse_format()) +
+  theme_bw()
+
+# Weibull probability density functions
+ggplot(data_weibull, aes(x=Time, y=PDF, group=c)) +
+  geom_line(aes(linetype=c, color=c), linewidth = 0.8) +
+  labs(color = '', linetype = '', y="Probability Density Function") +
+  scale_colour_discrete(labels = scales::parse_format()) +
+  scale_linetype_discrete(labels = scales::parse_format()) +
+  theme_bw()
+
+```
+A unique property of the Weibull distribution is that regardless of the shape, 
+the scale parameter represents the time point by which approximately 63.2% of 
+the population is expected to have experienced the event. If the scale = 1, it 
+means that at 1 unit of time (e.g., 1 year or 1 month, depending on your data), 
+roughly 63% of your subjects will have had the event, as can be seen from the 
+survival distribution above.
+
+
+## Fitting a parametric survival model
+
+Parametric survival models are typically fitted to observed survival data 
+using the **method of maximum likelihood**. We construct a **likelihood function**
+that represents the probability of observing our specific data given a set
+of parameters. Because the likelihood equations for survival data are often
+complex, in practice a numerical procedure - most commonly the
+**Newton-Raphson algorithm** - is used to find the values of parameters that 
+maximise the likelihood function.
+
+
+## Data example: The Gehan leukaemia data
+
+To demonstrate fitting parametric survival models, we will use a data example 
+by **Gehan (1965)** (which originated from a randomised controlled trial by 
+**Freireich et al. 1963**), in which
+
+- 42 children with acute leukaemia were enrolled in a randomised controlled trial, 
+in which 21 patients received an experimental treatment (6-mercaptopurine or 6-MP) 
+and the other 21 received a placebo
+- Participants had complete or partial remission status at randomisation, and 
+were matched by remission status (one randomised to 6-MP and the other to placebo)
+- The participants were then followed until their leukaemia returned (relapse) 
+or the end of study (administrative censoring)
+
+The [Gehan](https://www.rdocumentation.org/packages/MASS/versions/7.3-65/topics/gehan) 
+study data is included in the [MASS](https://cran.r-project.org/web/packages/MASS/MASS.pdf) 
+package:
+
+```{r,warning=FALSE}
+
+# make sure you have installed the MASS package
+# install.packages("MASS")
+# load the MASS package
+library(MASS)
+
+# View gehan data for the leukaemia trial in MASS package gehan
+MASS::gehan
+
+```
+
+When you load the dataset in R, you will see the following variables in the data:
+
+- `pair`: Label for matched pair (we will ignore this aspect in our examples)
+
+- `time`: The time (in weeks) in remission until the return of the disease (relapse)
+
+- `cens`: The censoring indicator (0 = censoring, 1 = relapse)
+
+- `treat`: The treatment arm (control, 6-MP).
+
+
+## Modelling approaches
+
+To evaluate how covariates affect survival times, two following modelling approaches 
+can be employed:
+
+**1. Proportional hazards (PH) models**
+
+A significant benefit of the direct mathematical link between the hazard function 
+and the survival function is that any covariate effect modelled on the hazard scale 
+translates intuitively to the survival scale. Consequently, regression models in 
+survival analysis are typically specified at the level of the hazard. 
+
+The most common approach involves **relative risk models**, which assume that 
+covariates have a **multiplicative effect** on the hazard. For an individual $i$ 
+(where $i = 1, \dots, n$) with a set of $p$ covariates $x_i = (x_{i1}, \dots, x_{ip})$, 
+the proportional hazards (PH) model defines the hazard function as:
+
+$$h_i(t) = h(t | x_i) = h_0(t) \cdot \psi(x_i),$$ 
+
+where 
+- $h_0(t)$ is the **baseline hazard**, a time-dependent function representing 
+the risk for an individual with all covariate values set to zero. This baseline 
+is common to all individuals in the study. 
+- $\psi(x_i)$ is the **multiplier**, a non-negative function of the covariates 
+that scales the baseline hazard up or down.
+
+To ensure the hazard remains positive, we typically use the exponential of a 
+linear combination of the covariates ($x_i \beta$). The resulting model is 
+expressed as:
+
+$$h_i(t) = h(t | x_i) = h_0(t) \exp(x_i \beta)$$
+On the log-hazard scale this model writes down
+
+$$\log h_i(t) = \log h(t | x_i) = \log h_0(t) + x_i \beta,$$
+showing how the covariates shift the hazard proportionally, as the distance 
+between the log-hazard curves remains constant over time.
+
+In our data example, we would be interested to know 
+**“Does the treatment lower the risk of leukaemia relapse compared to the placebo?”** 
+
+The results from proportional hazards models are typically reported as 
+**hazard ratios (HR)**. The main assumption of this model is the
+**proportional hazards assumption**, i.e., that the ratio of the hazards for
+two subjects with covariate values $x_i$ and $x_j$ is constant over time:
+
+$$ \frac{h(t|x_i)}{h(t|x_j)} = \frac{\exp(x_i\beta)}{\exp(x_j\beta)}$$
+
+**2. Accelerated failure time (AFT) models** 
+
+While the proportional hazards (PH) model is the standard in survival analysis, 
+the accelerated failure time (AFT) model serves as a powerful alternative. It is 
+particularly useful when the proportional hazards assumption is violated or when 
+the research question focuses on the **timing of an event** rather than the risk 
+of its occurrence.
+
+Because survival time $T$ is a positive variable, the AFT model is naturally 
+framed as a log-linear regression. This allows us to model the impact of covariates 
+directly on the event time $T$ using a **log link** function:
+
+$$\log(T) = \mu + X\alpha + \sigma\epsilon,$$
+
+where 
+- $\mu$ and $\sigma$ represent the **location** and **scale** parameters, respectively
+- $X\alpha$ is the linear predictor of your covariates
+- $\epsilon$ is s the error term, typically assumed to follow a specific parametric 
+distribution (such as Extreme Value, Normal, or Logistic)
+
+The intuition behind the name *accelerated failure time* model is best understood 
+through the survival function. For any individual $i$, the AFT model assumes that
+**covariates act directly on the time scale itself**:
+
+$$S_i(t) = S_0\left( \phi \cdot t \right),$$
+where $S_0(.)$ is the baseline survival function and $\phi >0$ is an 
+**acceleration factor (AF)**. 
+
+More generally, one can write $\phi = exp(x_i\alpha)$, with $X$ including an
+intercept term:
+
+$$S_i(t) = S_0\left( \exp(X_i\alpha) \cdot t \right)$$
+In this framework, the covariates act as an accelerator factor ($\phi = \exp(X_i\alpha)$):
+
+- Accelerating time, if $\alpha < 1$, making the time pass 'faster' for 
+that individual, so that they reach the event sooner than the baseline
+- Decelerating time, if $\alpha > 1$, making time 'slow down' and extending the 
+survival period compared to the baseline
+
+Note that the sign of the coefficient $\alpha$ has the opposite meaning compared 
+to the coefficient $\beta$ in PH model:
+
+- In PH models: A positive $\beta$ ($\text{hazard ratio (HR)} > 1$) usually means 
+the event happens sooner 
+- In AFT models: A positive $\alpha$ ($\text{time ratio (TR)} > 1$) means the 
+event happens later, as the time to failure has been 'decelerated' or prolonged. 
+
+In AFT model, the covariates thus stretch out or shrink survival time. In our 
+data example, we would be interested to know “How much longer can a patient expect 
+to remain in remission on the treatment compared to the placebo?” 
+
+In our data example, we would be interested to know 
+**“Does the treatment lower the risk of leukaemia relapse compared to the placebo?”** 
+
+The results from accelerated failure models are typically reported as 
+**time ratios (TR)**. The main assumption of the AFT model is that the effect of
+a covariate is to **multiply the time scale**, i.e., that the ratio of event times
+in two groups, i.e., exposed (E) and control (C)
+
+$$ TR = \frac{T_E}{T_C} $$
+is constant over time.
+
+AFT models are usually fully parametric.
+
+In the following we are going to show how to fit various fully parametric 
+proportional hazards and accelerated failure time models in our example dataset.
+
+
+## Data example: Fitting an Exponential model
+
+For exponential model, applied to the data example, where $X$ = group 
+(1 = treatment, 0 = placebo):
+
+**1. Proportional hazards (PH) model**
+
+$$h(t | X) = h_0(t) \exp(X \beta_1) = \lambda \exp(X \beta_1) = \exp(\beta_0 + X \beta_1) $$
+
+**2. Accelerated failure time (AFT) model**
+
+$$\log(T) = \mu + X\alpha_1 + \sigma\epsilon,$$
+where for exponential model, the scale parameter $\sigma$ is fixed at 1. 
+
+Exponential PH and AFT models are thus the same model, the only difference is in 
+their parametrisation.
+
+
+*Fitting exponential proportional hazards (PH) model*
+
+We can fit the exponential PH model using [flexsurvreg](https://www.rdocumentation.org/packages/flexsurv/versions/2.3.2/topics/flexsurvreg) 
+function from the
+[flexsurv](https://cran.r-project.org/web/packages/flexsurv/vignettes/flexsurv.pdf) package, specifying `dist="exp"`:
+
+```{r,warning=FALSE}
+
+# make sure you have installed the flexsurv package
+# install.packages("flexsurv")
+# load the flexsurv package
+# note that when you load the flexsurv package, it also automatically loads the 
+# survival package, as it is built directly on top of the survival package's 
+# infrastructure, and needs the Surv() function and the underlying survival object 
+# logic to function
+library(flexsurv) # for flexsurvreg for parametric models
+library(MASS) # reloaded to be able to run this code block independently
+
+# read in the gehan data for the leukaemia trial in MASS package gehan
+leukdata <- MASS::gehan
+
+# Setting control group as the reference group
+leukdata$treat <- factor(leukdata$treat, levels = c("control", "6-MP"))
+
+# EXPONENTIAL PH MODEL
+
+# Fitting an exponential PH model using flexsurv package
+surv_exp1 <- flexsurvreg( Surv(time, cens) ~ treat, data = leukdata, dist = "exp")
+
+# Summary shows results in terms of rate by default
+# gives rate for the reference group (placebo)
+# gives HR
+print(surv_exp1)
+
+# This will calculate the actual hazard rate for each group
+summary(surv_exp1, newdata = data.frame(treat = c("control", "6-MP")), type = "hazard")
+
+```
+
+The output for the intercept is $\exp(\hat{\beta_0})$, giving the baseline hazard
+for the reference group (placebo) directly: $\hat{\lambda_0}=0.115$. 
+$\hat{\beta_1} = -1.527$, on the other hand, is reported on the log-hazard scale, 
+and the sign of the raw coefficient tells you the direction of the effect immediately 
+(e.g., negative is a reduction in risk). However, the output also gives you the
+$\exp(\hat{\beta_1})$, which is the hazard ratio (HR) we are typically interested in:
+
+$$HR = \frac{\exp(\hat{\beta_0}+\hat{\beta_1})}{\exp(\hat{\beta_0})} = \exp(\hat{\beta_1}) = \exp(-1.527) = 0.217$$
+We can also calculate the hazard for the treatment group 
+$\hat{\lambda_1} = \exp(\hat{\beta_0}+\hat{\beta_1}) = 0.115*0.217 = 0.025$
+
+Assuming the data follow exponential distribution, the treatment lowers the
+risk of leukaemia relapse by 78% compared to the placebo 
+(HR = 0.217, 95% CI = 0.10, 0.474).
+
+*Fitting exponential accelerated failure time (AFT) model*
+
+We can fit the exponential accelerated failure time model using 
+[survreg](https://www.rdocumentation.org/packages/survival/versions/2.8-2/topics/survreg) 
+function from the
+[survival](https://cran.r-project.org/web/packages/survival/survival.pdf) package, 
+specifying `dist="exponential"`:
+
+
+```{r,warning=FALSE}
+
+# make sure you have installed the survival package
+# install.packages("survival")
+# load the survival package
+# note that when you loaded the flexsurv package above, it also automatically 
+# loaded the survival package, as it is built directly on top of the survival 
+# package's infrastructure, and needs the Surv() function and the underlying 
+# survival object logic to function
+library(survival) # for survreg for parametric models
+
+# EXPONENTIAL AFT MODEL
+
+# Fitting an exponential AFT model using survreg package
+surv_exp2 <- survreg( Surv(time,cens) ~ treat, data = leukdata, dist = "exponential")
+summary(surv_exp2)
+
+# Extract coefficients
+coeffs <- coef(surv_exp2)
+coeffs
+
+# Mean survival time in the control (placebo) group
+T_C <- exp(coeffs[1])
+T_C
+# Mean survival time in the exposed (treatment) group
+T_E <- exp(coeffs[1]+coeffs[2])
+T_E
+
+# Calculate Time Ratio (TR) for the treatment
+time_ratio <- exp(coeffs[2])
+time_ratio
+
+# Calculate 95% confidence intervals for the TR
+conf_intervals <- exp(confint(surv_exp2)[2, ])
+conf_intervals
+
+```
+
+As the AFT model is parameterised as a linear regression of **log-survival time**, 
+the intercept ($\mu$) represents the log of the mean survival time for the control 
+(placebo) group, with mean survival time thus $T_C = \exp(\hat{\mu}) = 8.7$ weeks. 
+The coefficient $\hat{\alpha_1} = 1.527$ is also expressed on the **log-time scale**, 
+and the sign of the raw coefficient tells you the direction of the effect immediately 
+(e.g., positive means the treatment increases the time in remission). We can 
+calculate the mean survival time for the exposed (treatment) 
+group $T_E = \exp(\hat{\mu}+\hat{\alpha_1}) = exp(2.159+1.527) = 39.9$  weeks. 
+We can also calculate the time ratio (TR) that we are typically interested in:
+
+$$TR = \frac{T_E}{T_C} = \frac{\exp(\hat{\mu}+\hat{\alpha_1})}{\hat{\exp(\hat{\mu})}} = \exp(\hat{\alpha_1}) = \exp(1.527) = 4.6$$
+Thus, assuming the data follow exponential distribution, the treatment extends
+the time in remission 4.6 times (TR = 4.6, 95% CI = 2.1, 10.0).
+
+Note that for exponential model the coefficient $\alpha_1$ for the AFT model is 
+the opposite to the coefficient $\beta_1$ in PH model: $\beta_1 = - \alpha_1$. 
+The hazard ratio for exponential PH model can thus also be obtained from the
+survreg output as $\exp(-1.527) = 0.22$.
+
+We can also use the [predict()](https://www.rdocumentation.org/packages/car/versions/3.1-5/topics/Predict) 
+function from the [stats](https://www.rdocumentation.org/packages/stats/versions/3.6.2) 
+package (which is loaded by default) to compute for example median survival time . 
+When a `survreg` object is used, a specific 
+[predict.survreg()](https://www.rdocumentation.org/packages/survival/versions/3.8-3/topics/predict.survreg) 
+function is called:
+
+```{r,warning=FALSE}
+
+# EXPONENTIAL AFT MODEL
+
+# Function predict can compute median survival time 
+# Median survival time for placebo and treatment group
+median_times <- predict(surv_exp2, newdata = data.frame(treat = c("control", "6-MP")), 
+                        type = "quantile", p = 0.5)
+median_times
+
+```
+
+Note that the ratio of the median survival times $TR = \frac{27.6}{6.0} = 4.6$.
+
+
+## Data example: Fitting a Weibull model
+
+For Weibull model, applied to the data example, where $X$ = group 
+(1 = treatment, 0 = placebo):
+
+**1. Proportional hazards (PH) model**
+
+$$h(t | X) = h_0(t) \exp(X \beta_1) = \lambda \gamma t^{\gamma-1} \exp(X \beta_1) = \exp(\beta_0 + X \beta_1)\gamma t^{\gamma-1}, $$
+
+where $ h_0(t) = \exp(\beta_0)\gamma t^{\gamma-1}$
+
+**2. Accelerated failure time (AFT) model**
+
+$$\log(T) = \mu + X\alpha_1 + \sigma\epsilon,$$
+The following relationships apply:
+
+$ \lambda = \exp(\frac{-\mu}{\sigma}), \gamma = \frac{1}{\sigma}, \beta_1 = \frac{-\alpha_1}{\sigma}$
+
+For further detail and proof see:
+
+Catherine Legrand. Advanced survival models. 2021.
+
+Note also that the Weibull distribution is mathematically unique in that it is 
+the only distribution that satisfies both the proportional hazards (PH) and 
+accelerated failure time (AFT) assumptions simultaneously.
+
+
+*Fitting Weibull proportional hazards (PH) model*
+
+We can fit the Weibull PH model using [flexsurvreg](https://www.rdocumentation.org/packages/flexsurv/versions/2.3.2/topics/flexsurvreg) 
+function from the
+[flexsurv](https://cran.r-project.org/web/packages/flexsurv/vignettes/flexsurv.pdf) 
+package, specifying `dist="weibullPH"`:
+
+```{r,warning=FALSE}
+
+# WEIBULL PH MODEL
+
+# Fitting a Weibull model using flexsurv package
+surv_wei1 <- flexsurvreg( Surv(time, cens) ~ treat, data = leukdata, dist = "weibullPH")
+
+# gives estimate for shape parameter and scale parameter
+# gives HR
+print(surv_wei1)
+
+# This will calculate the actual hazard rates for each group at different times
+summary(surv_wei1, newdata = data.frame(treat = c("control", "6-MP")), type = "hazard")
+
+```
+
+The output gives estimates for the shape ($\hat{\gamma}$) and scale ($\hat{\sigma}$
+parameters on the natural scale. The estimate for ($\hat{\gamma}$) is 1.366
+suggesting an increase in the hazard as survival time increases (because ($\gamma>1$)).
+The 95% CI for ($\hat{\gamma}$) (1.023, 1.822) does not include 1, suggesting
+that the exponential model is not appropriate.
+
+$\hat{\beta_1} = -1.731$, on the other hand, is reported on the log-hazard scale, 
+and the sign of the raw coefficient tells you the direction of the effect immediately 
+(e.g., negative is a reduction in risk). However, the output also gives you the
+$\exp(\hat{\beta_1})$, which is the hazard ratio (HR) we are typically interested in:
+
+$$HR = \frac {\exp(\hat{\beta_0}+\hat{\beta_1}) \hat{\gamma}t^{\hat{\gamma}-1}} {\exp(\hat{\beta_0}) \hat{\gamma}t^{\hat{\gamma}-1}} = \exp(\hat{\beta_1}) = \exp(-1.731) = 0.177$$
+
+Assuming the data follow Weibull distribution, the treatment lowers the
+risk of leukaemia relapse by 82% compared to the placebo 
+(HR = 0.177, 95% CI = 0.079, 0.398).
+
+
+*Fitting Weibull accelerated failure time (AFT) model*
+
+We can fit the Weibull accelerated failure time model using 
+[survreg](https://www.rdocumentation.org/packages/survival/versions/2.8-2/topics/survreg) 
+function from the
+[survival](https://cran.r-project.org/web/packages/survival/survival.pdf) package, 
+specifying `dist="weibull"`:
+
+```{r,warning=FALSE}
+
+# WEIBULL AFT MODEL
+
+# Fitting a Weibull model using survreg package
+surv_wei2 <- survreg( Surv(time,cens) ~ treat, data = leukdata, dist = "weibull")
+summary(surv_wei2)
+
+# Extract coefficients
+coeffs <- coef(surv_wei2)
+coeffs
+
+# Calculate Time Ratio (TR) for the treatment
+time_ratio <- exp(coeffs["treat6-MP"])
+time_ratio
+
+# Calculate 95% confidence intervals for the TR
+conf_intervals <- exp(confint(surv_wei2)["treat6-MP", ])
+conf_intervals
+
+# Function predict can compute median survival time 
+# Median survival time for placebo and treatment group
+median_times <- predict(surv_wei2, newdata = data.frame(treat = c("control", "6-MP")), 
+                        type = "quantile", p = 0.5)
+median_times
+
+```
+
+Consistent with the log-linear structure of the AFT model, the intercept/location 
+$(\hat{\mu} = 2.248)$, coefficient $(\hat{\alpha_1} = 1.267)$, and scale 
+$(\hat{\sigma} = -0.312)$ are all reported on the **log-time scale**, 
+although the actual scale $(\exp(\hat{\sigma}) = 0.732$) is also given. 
+
+From the output for scale, we see that it's not equal to 1 (or log(Scale) equal to 0), 
+with p-value 0.03. This gives us evidence that the Weibull model fits better than 
+the exponential model (as $\sigma \ne 1)$ as in exponential model).
+
+The positive sign of the raw coefficient tells us that the treatment increases the 
+time in remission. As before, we can calculate the time ratio (TR) that we are typically 
+interested in:
+
+$$TR = \frac{T_E}{T_C} = \exp(\hat{\alpha_1}) = \exp(1.267) = 3.55$$
+We can extract 95% confidence intervals for the TR as shown above, and conclude
+that - assuming the data follow Weibull distribution - the treatment extends
+the time in remission 3.55 times (TR = 3.55, 95% CI = 1.93, 6.53). 
+
+Again, we can also use the `predict()` function to compute for example median survival 
+times in the two groups, and note that the ratio of the median survival times 
+$TR = \frac{25.7}{7.24} = 3.55$.
+
+Note that we can also obtain the estimated values in the Weibull PH model
+parameterisation from the `survreg` output by following the equations shown before:
+
+$ \lambda = \exp(\frac{-\mu}{\sigma}), \gamma = \frac{1}{\sigma}, \beta_1 = \frac{-\alpha_1}{\sigma}$
+
+```{r,warning=FALSE}
+
+lambda <- exp( -surv_wei2$coef[1] / surv_wei2$scale )
+lambda
+
+gamma <- 1 / surv_wei2$scale
+gamma
+
+beta <- -surv_wei2$coef[2] / surv_wei2$scale
+beta
+
+HR <- exp(beta)
+HR
+
+```
+However, there is also a package [parfm](https://cran.r-project.org/web/packages/parfm/parfm.pdf) 
+that does these transformations and allows you to fit the Weibull PH model:
+
+```{r,warning=FALSE}
+
+# make sure you have installed the parfm package
+# install.packages("parfm")
+# load the parfm package
+library(parfm) 
+
+# WEIBULL PH MODEL
+
+# Fitting a Weibull model using survreg package
+surv_wei4 <- parfm( Surv(time,cens) ~ treat, data = leukdata, dist = "weibull", frailty = "none")
+surv_wei4
+summary(surv_wei2)
+
+HR <- exp(surv_wei4[c(3)])
+HR
+
+HR_CI <- ci.parfm(surv_wei4, level = 0.05)
+HR_CI
+
+```
+
+Finally, we can also fit the Weibull accelerated failure time model using 
+[flexsurvreg](https://www.rdocumentation.org/packages/flexsurv/versions/2.3.2/topics/flexsurvreg) 
+function from the
+[flexsurv](https://cran.r-project.org/web/packages/flexsurv/vignettes/flexsurv.pdf) 
+package, specifying `dist="weibull"`:
+
+```{r,warning=FALSE}
+
+# WEIBULL AFT MODEL
+
+# Fitting a Weibull AFT model using flexsurvreg package
+surv_wei3 <- flexsurvreg( Surv(time,cens) ~ treat, data = leukdata, dist = "weibull")
+print(surv_wei3)
+
+```
+
+The output for the shape parameter ($\hat{\gamma}$) is the same as in the 
+Weibull PH model (reported on the natural scale). As mentioned before, a unique 
+property of the Weibull distribution is that regardless of the shape, the scale 
+parameter represents the time point by which approximately 63.2% of the population 
+is expected to have experienced the event. In the AFT parameterisation of the 
+Weibull model, the scale parameter in the output refers to this time point, 
+i.e. to time $t$ at which $S(t)≈0.368$, which in this data example is 9.472 weeks 
+for relapse in the reference (placebo) group.
+
+Consistent with the log-linear structure of the AFT model, the covariate effect
+$\hat{\alpha_1} = 1.267$ is reported on the **log-time scale**. Similarly as shown
+above for the `survreg` output, we can calculate the time ratio (TR) that we are 
+typically interested in:
+
+$$TR = \frac{T_E}{T_C} = \exp(\hat{\alpha_1}) = \exp(1.267) = 3.55$$
+Note, however, that the `flexsurvreg` output also automatically provides the TR 
+and its 95% confidence interval.
+
+
+## Model validation
+
+Before interpreting the coefficients or baseline parameters from a parametric 
+survival model, we must verify that the chosen distribution is a reasonable 
+approximation of the underlying data-generating process. Unlike semi-parametric 
+models, parametric estimation relies heavily on the validity of the functional 
+form and the behavior of the covariates.
+
+First, we must ensure the **distributional form** (e.g., Exponential or Weibull) 
+matches the shape of the observed survival history. Second, we must verify the 
+**structural assumptions** — specifically the **proportional hazards (PH)** or 
+**accelerated failure time (AFT) assumptions**. We check this by ensuring that 
+the effect of our covariates remains **constant** across the entire follow-up period.
+
+*1. Visual comparison with non-parametric estimates*
+
+The simplest check is to plot the fitted parametric survival curve $\hat{S}(t)$ 
+directly over the Kaplan-Meier (KM) curve, that is 'data-driven' and makes no 
+functional form assumptions. If the smooth parametric curve deviates significantly 
+from the KM steps, the model is likely misspecified.
+
+KM versus Exponential fit:
+
+```{r,warning=FALSE}
+
+# 1. Fit the Kaplan-Meier (observed) by treatment group
+km <- survfit( Surv(time, cens) ~ treat, data=leukdata)
+
+# 2. Fit the parametric exponential survival model (predicted) by treatment group
+surv_exp2 <- survreg( Surv(time,cens) ~ treat, data = leukdata, dist = "exponential")
+
+# 3. Visual suitability check: survival by treatment group
+
+# Plot the KM curves
+plot(km, col = c("red", "blue"), conf.int = FALSE, 
+     main = "KM vs Exponential fit", xlab = "Weeks", ylab = "Survival Probability")
+legend("bottomleft", legend = levels(leukdata$treat), col = c("red", "blue"), lty = 1:2)
+
+# Add the Exponential theoretical curves
+times <- seq(0, max(leukdata$time), length.out = 100)
+
+# Calculate S(t) for Group 1 (reference = placebo)
+# lambda = exp(-intercept)
+lambda_ref <- exp(-coef(surv_exp2)[1])
+lines(times, exp(-lambda_ref * times), col = "red", lwd = 2, lty=2)
+
+# Calculate S(t) for Group 2 (treatment)
+# lambda = exp(-(intercept + coefficient)
+lambda_treat <- exp(-(surv_exp2$coef[1] + surv_exp2$coef[2]))
+lines(times, exp(-lambda_treat * times), col = "blue", lwd = 2, lty = 2)
+
+```
+
+KM versus Exponential and Weibull fit:
+
+```{r,warning=FALSE}
+
+# 1. Fit the Kaplan-Meier (observed) by treatment group
+# km <- survfit(Surv(time, cens) ~ treat, data=leukdata)
+
+# 2. Fit the parametric exponential survival model (predicted) by treatment group
+# surv_exp2 <- survreg(Surv(time,cens) ~ treat, data = leukdata, dist = "exponential")
+
+# 3. Fit the parametric Weibull survival model (predicted) by treatment group
+# surv_wei2 <- survreg(Surv(time,cens) ~ treat, data = leukdata, dist = "weibull")
+
+# 4. Visual suitability check: survival by treatment group
+
+# Plot the KM curves
+plot(km, col = c("red", "blue"), conf.int = FALSE, 
+     main = "KM vs Exponential and Weibull fit", xlab = "Weeks", ylab = "Survival Probability")
+legend("bottomleft", legend = levels(leukdata$treat), col = c("red", "blue"), lty = 1:2)
+
+# Add the Exponential and Weibull theoretical curves
+times <- seq(0, max(leukdata$time), length.out = 100)
+
+# Exponential
+# Calculate S(t) for Placebo (reference)
+# lambda = exp(-intercept)
+lambda_ref_exp <- exp(-surv_exp2$coef[1])
+lines(times, exp(-lambda_ref_exp * times), col = "red", lwd = 2, lty=2)
+
+# Calculate S(t) for 6-MP
+# lambda = exp(-(intercept + coefficient_treatment)
+lambda_treat_exp <- exp(-(surv_exp2$coef[1] + surv_exp2$coef[2]))
+lines(times, exp(-lambda_treat_exp * times), col = "blue", lwd = 2, lty = 2)
+
+# Weibull
+# we know S(t) for Weibull model is exp(-lambda*t^gamma)
+# Calculate S(t) for Placebo (reference)
+# lambda = exp(-intercept/scale)
+lambda_ref_wei <- exp(-surv_wei2$coef[1]/surv_wei2$scale)
+gamma_wei <- 1/surv_wei2$scale
+lines(times, exp(-lambda_ref_wei * times^gamma_wei), col = "red", lwd = 2, lty=3)
+
+# Calculate S(t) for 6-MP
+# lambda = exp(-(intercept + coefficient_treatment)/scale
+lambda_treat_wei <- exp(-(surv_wei2$coef[1] + surv_wei2$coef[2])/surv_wei2$scale)
+lines(times, exp(-lambda_treat_wei * times^gamma_wei), col = "blue", lwd = 2, lty = 3)
+
+```
+
+We are essentially checking if the parametric curve can adequately capture the 
+steps of the empirical Kaplan-Meier curve. However, the survival function is 
+naturally curved and so visual inspection is not always a good check for model fit.
+
+
+*2. Linear transformation (graphical checks)*
+
+Alternatively, we can exploit the mathematical properties of these distributions 
+by transforming the survival function into a **linear form**. If the distribution 
+fits, the transformed data should fall on a **straight line**.
+
+For exponential model, the survival function is $S(t)=\exp(-\lambda t)$ and 
+$-\log{S(t)}=-\lambda t$, and thus the **cumulative hazard**, $-\log{S(t)}$, 
+**is linearly related over time with $\lambda$**.
+
+We can thus check whether **plotting the cumulative hazard against time** gives
+a **straight line** starting at the origin:
+
+```{r,warning=FALSE}
+
+# make sure you have installed the survminer package
+# install.packages("survminer")
+# load the survminer package
+library(survminer) # for surv_summary() function
+library(tidyverse) # reloaded to be able to run this block independently
+library(survival) # reloaded to be able to run this block independently
+
+# Fitting cumulative hazard against time
+
+# Kaplan-Meier (observed) by treatment group
+km <- survfit( Surv(time, cens) ~ treat, data=leukdata)
+cum_data <- km %>% surv_summary(data = leukdata)
+
+cum_data <- cum_data %>%
+  mutate(ch = -log(surv))
+
+# using coefficients from this model:
+# surv_exp2 <- survreg( Surv(time,cens) ~ treat, data = leukdata, dist = "exponential")
+ggplot(cum_data, aes(x = time, y = ch, color = treat)) +
+  geom_line() +
+  geom_point() +
+  # we know -logS(t) = lambda * t
+  # intercept: 0
+  # slope: lambda 
+  geom_abline(aes(intercept = 0,
+                  slope = exp(-surv_exp2$coef[1])), linetype=2) +
+  geom_abline(aes(intercept = 0,
+                  slope = exp(-(surv_exp2$coef[1]+surv_exp2$coef[2]))), linetype=2) +
+  theme_bw()
+
+```
+If the hazard is constant, as the exponential model assumes, the plot should be 
+a straight diagonal line. Both plots look reasonably straight suggesting that the 
+exponential assumption is reasonable.
+
+We can also use this plot to assess **proportional hazards assumption** in the 
+exponential PH model: If the hazards are proportional, the lines will diverge 
+at a constant rate. Proportionality is thus visualised as two straight lines 
+that do not cross and stay the same distance apart. That appears to be true here.
+
+For Weibull model, the survival function is $S(t)=\exp(-\lambda t^\gamma)$ and 
+$\log(-\log{S(t)}) = \log \lambda + \log t$, and thus the **log cumulative hazard**,
+$\log(-\log{S(t)})$, **is linear with log of time**.
+
+We can thus check whether **plotting the log cumulative hazard against log of time** 
+gives a **straight line**:
+
+```{r,warning=FALSE}
+
+# Fitting log cumulative hazard against time
+
+# Kaplan-Meier (observed) by treatment group
+km <- survfit( Surv(time, cens) ~ treat, data=leukdata)
+cum_data <- km %>% surv_summary(data = leukdata) 
+
+cum_data <- cum_data %>%
+  mutate(log_ch = log(-log(surv)))
+
+# using coefficients from this model:
+# surv_wei2 <- survreg( Surv(time,cens) ~ treat, data = leukdata, dist = "weibull")
+ggplot(cum_data, aes(x = log(time), y = log_ch, color = treat)) +
+  geom_line() +
+  geom_point() +
+  # we know log(-logS(t) = log(lambda)+gamma*log(t)
+  # intercept: log(lambda) = log * exp(-coef/scale)
+  # slope: gamma = 1/scale
+  geom_abline(aes(intercept = -surv_wei2$coef[1]/surv_wei2$scale,
+                  slope = 1/surv_wei2$scale), linetype=2) +
+  geom_abline(aes(intercept = -(surv_wei2$coef[1]+surv_wei2$coef[2])/surv_wei2$scale,
+                  slope = 1/surv_wei2$scale), linetype=2) +
+  theme_bw()
+
+```
+Both plots look reasonably straight suggesting that the Weibull assumption is 
+reasonable.
+
+We can also use this plot to assess the **proportional hazards assumption** in
+the Weibull PH model: If the hazards are proportional, the lines will be 
+**parallel**, i.e., have the same slope ($\gamma$). Here, the lines appear parallel.
+
+Note also that for Weibull model, a constant vertical shift (multiplying the hazard) 
+is mathematically indistinguishable from a constant horizontal shift (multiplying 
+the survival time). That is, the Weibull distribution satisfies both the PH and 
+AFT assumptions simultaneously. Thus, we can also conclude that the 
+*accelerated failure time assumption** also holds.
+
+From the **log-log plot**, we can actually deduct the following things:
+
+- **1. Parallel straight lines:** Weibull and PH (and AFT) assumptions hold
+- **2. Parallel straight lines with slope 1:** Exponential model is a good fit
+- **3. Parallel but not straight lines:** PH but not Weibull (could use the Cox model)
+- **4. Not parallel and not straight:** Weibull is not a good fit, PH violated
+- **5. Not parallel but straight:** Weibull is a good fit, but PH and AFT violated,
+indicates different $\gamma$ in the two groups
+
+
+*3. Graphical check for accelerated failure time assumption*
+
+The accelerated failure time (AFT) model assumes that a covariate (e.g., treatment)
+**multiplies survival time by a constant factor**.
+
+We can check whether there is a **constant horizontal shift** between survival 
+curves plotted against log of time:
+
+
+```{r,warning=FALSE}
+
+# make sure you have installed the broom package
+# install.packages("broom")
+# load the broom package
+library(broom) # for tidy() function
+library(tidyverse) # reloaded to be able to run this block independently
+library(flexsurv) # reloaded to be able to run this block independently
+
+# Plotting survival curves on log time scale to see the AFT model constant shift
+
+# 1. Fit the Kaplan-Meier (observed) by treatment group
+km <- survfit( Surv(time, cens) ~ treat, data=leukdata)
+summary(km)
+names(km)
+
+# 2. Create a data frame for ggplot
+plot_data <- broom::tidy(km)
+plot_data
+# survival probability is now named estimate
+names(plot_data)
+
+# 3. fit Exponential and Weibull
+surv_exp1 <- flexsurvreg( Surv(time, cens) ~ treat, data = leukdata, dist = "exp")
+surv_wei3 <- flexsurvreg( Surv(time,cens) ~ treat, data = leukdata, dist = "weibull")
+
+# 4. Generate predicted survival probabilities for a range of times
+# This creates a smooth curve for the log-time axis
+time_seq <- seq(0.1, 35, length.out = 100)
+pred_exp <- summary(surv_exp1, t = time_seq, tidy = TRUE)
+pred_wei <- summary(surv_wei3, t = time_seq, tidy = TRUE)
+
+# 5. Plot everything with a Log-transformed X-axis
+ggplot() +
+  # Kaplan-Meier steps (the raw data)
+  geom_step(data = plot_data, aes(x = time, y = estimate, color = strata), linewidth = 0.8) +
+   # Exponential fitted curves
+  geom_line(data = pred_exp, aes(x = time, y = est, color = treat), linetype = "dashed", linewidth = 1) +
+  # Weibull fitted curves
+  geom_line(data = pred_wei, aes(x = time, y = est, color = treat), linetype = "dotted", linewidth = 1) +
+  scale_x_log10() + 
+  labs(title = "KM vs. Parametric fits on log time scale",
+       subtitle = "Dashed = Exponential, Dotted = Weibull",
+       x = "Log(Time)", y = "Survival Probability") +
+  theme_bw()
+
+```
+The shift between survival curves does seem constant both for the exponential
+and weibull AFT model.
+
+
+## Model selection
+
+*Exponential vs Weibull*
+
+**1. Likelihood Ratio Test (LRT)**
+
+Because the Exponential distribution is a special case of the Weibull distribution 
+(where the shape parameter $\gamma = 1$), we can use a formal 
+**Likelihood Ratio Test (LRT)** to determine which model provides a better fit 
+for the data.
+
+To test whether a Weibull $(\lambda, \gamma)$ distribution gives a significantly 
+better fit than an Exponential $(\lambda$) distribution, we test the following 
+null hypothesis:
+
+$$H_0: \gamma = 1 \quad \text{(Exponential model)}$$
+$$H_1: \gamma \neq 1 \quad \text{(Weibull model)}$$
+Under the null hypothesis $H_0$, the likelihood ratio test statistic $W$ follows 
+a chi-squared distribution with 1 degree of freedom ($\chi^2_1$):
+
+$$W(\hat{\lambda}, 1) = 2 \left[ \log L(\hat{\lambda}, \hat{\gamma}) - \log L(\hat{\lambda_0}, 1) \right] \sim \chi_1^2,$$
+where $\hat{\lambda}$ and $\hat{\gamma}$ are the maximum likelihood estimates (MLEs) 
+for a Weibull model with unconstrained $\hat{\gamma}$, and $\hat{\lambda}_0$ is 
+the MLE for a Weibull model with the constraint $\gamma = 1$ (i.e., MLE for the
+exponential model).
+
+The Exponential and Weibull PH and AFT model outputs we ran before all provide
+the necessary log-likelihood values for carrying out the LRT:
+
+```{r,warning=FALSE}
+
+# EXPONENTIAL PH/AFT MODEL
+
+# Fitting an exponential PH model using flexsurv package
+surv_exp1 <- flexsurvreg( Surv(time, cens) ~ treat, data = leukdata, dist = "exp")
+print(surv_exp1)
+
+# EXPONENTIAL AFT/PH MODEL
+
+# Fitting an exponential AFT model using survreg package
+surv_exp2 <- survreg( Surv(time,cens) ~ treat, data = leukdata, dist = "exponential")
+summary(surv_exp2)
+
+# WEIBULL PH MODEL
+
+# Fitting a Weibull PH model using flexsurv package
+surv_wei1 <- flexsurvreg( Surv(time, cens) ~ treat, data = leukdata, dist = "weibullPH")
+print(surv_wei1)
+
+# WEIBULL AFT/PH MODEL
+
+# Fitting a Weibull AFT model using survreg package
+surv_wei2 <- survreg( Surv(time,cens) ~ treat, data = leukdata, dist = "weibull")
+summary(surv_wei2)
+
+# Fitting a Weibull AFT model using flexsurvreg package
+surv_wei3 <- flexsurvreg( Surv(time, cens) ~ treat, data = leukdata, dist = "weibull")
+print(surv_wei3)
+
+```
+We can thus carry out the LRT for example in the following way:
+
+```{r,warning=FALSE}
+
+# Calculate manually
+
+# Using Survreg output above that provides the log-likehood values
+# The necessary values can be extracted in the following way:
+# the first value of loglik element gives the log-likelihood for the model with only an intercept
+# the second value gives the log-likelihood for the model with the covariates
+logL_exp <- surv_exp2$loglik[2]
+logL_exp
+logL_wei <- surv_wei2$loglik[2]
+logL_wei
+
+# Calculate the test statistic
+LRT_statistic <- 2 * (logL_wei - logL_exp)
+LRT_statistic
+
+# Calculate the P-value
+# We use the Chi-squared distribution with 1 degree of freedom
+p_value <- pchisq(LRT_statistic, df = 1, lower.tail = FALSE)
+p_value
+
+```
+A significant p-value ($p < 0.05$) indicates that allowing the shape parameter 
+$\gamma$ to vary (Weibull model) significantly improves the model's log-likelihood 
+compared to fixing it at 1 (Exponential model). We would thus reject the null 
+hypothesis at 5% significance level, and conclude that a general Weibull distribution 
+is better than an exponential distribution in this case.
+
+We could also use the [anova()](https://www.rdocumentation.org/packages/stats/versions/3.6.2/topics/anova) 
+function from the `stats` package to compare two nested `survreg` objects:
+
+```{r,warning=FALSE}
+
+# Likelihood Ratio Test
+anova(surv_exp2, surv_wei2)
+
+```
+
+Also note that while the Wald Test (the p-value for Log(scale) in `survreg` output 
+is a quick shortcut, as demonstrated above, the LRT is generally considered more 
+robust for model selection.
+
+
+**2. Likelihood Ratio Test (LRT)**
+
+While the Likelihood Ratio Test (LRT) is useful for comparing nested models 
+(like Exponential vs. Weibull), the Akaike Information Criterion (AIC) provides 
+a more general framework for model selection. AIC allows us to compare any set 
+of models, even those that are not nested, by penalizing for the number of 
+parameters used.
+
+While LRT asks: "Is the improvement in log-Likelihood large enough to be 'real'?",
+AIC asks: "Is the improvement in log-Likelihood large enough to justify the extra 
+parameter we added?"
+
+The AIC is defined as:
+
+$$AIC = -2\log(L) + 2p,$$
+
+where $\log(L)$ is the log-likelihood of the model and $p$ is the number of 
+estimated parameters in the model.
+
+The goal of AIC is to find the model that explains the most variation using the 
+fewest possible parameters (the principle of parsimony). The $+2p$ term penalises 
+the model for adding extra parameters. This prevents overfitting. When comparing 
+models, the one with the **lower AIC value** is considered the better fit.
+
+
+While the `flexsurvreg` outputs for the Exponential and Weibull PH and AFT models 
+automatically print out AIC, `survreg` output only prints out the log-likelihood 
+values:
+
+```{r,warning=FALSE}
+
+# EXPONENTIAL PH/AFT MODEL
+
+# Fitting an exponential PH model using flexsurv package
+surv_exp1 <- flexsurvreg( Surv(time, cens) ~ treat, data = leukdata, dist = "exp")
+print(surv_exp1)
+
+# EXPONENTIAL AFT/PH MODEL
+
+# Fitting an exponential AFT model using survreg package
+surv_exp2 <- survreg( Surv(time,cens) ~ treat, data = leukdata, dist = "exponential")
+summary(surv_exp2)
+
+# WEIBULL PH MODEL
+
+# Fitting a Weibull PH model using flexsurv package
+surv_wei1 <- flexsurvreg( Surv(time, cens) ~ treat, data = leukdata, dist = "weibullPH")
+print(surv_wei1)
+
+# WEIBULL AFT/PH MODEL
+
+# Fitting a Weibull AFT model using survreg package
+surv_wei2 <- survreg( Surv(time,cens) ~ treat, data = leukdata, dist = "weibull")
+summary(surv_wei2)
+
+# Fitting a Weibull AFT model using flexsurvreg package
+surv_wei3 <- flexsurvreg( Surv(time, cens) ~ treat, data = leukdata, dist = "weibull")
+print(surv_wei3)
+
+```
+
+However, we can extract the log-likelihood values from the `survreg` output and
+manually calculate the AICs to compare the two models:
+
+```{r,warning=FALSE}
+
+# Calculate manually
+
+# Using Survreg output above that provides the log-likehood values
+# The necessary values can be extracted in the following way:
+# the first value of loglik element gives the log-likelihood for the model with only an intercept
+# the second value gives the log-likelihood for the model with the covariates
+logL_exp <- surv_exp2$loglik[2]
+logL_exp
+logL_wei <- surv_wei2$loglik[2]
+logL_wei
+
+# Calculate the AIC
+AIC_exp <- -2 * (logL_exp) + 2*2
+AIC_exp
+
+AIC_wei <- -2 * (logL_wei) + 2*3
+AIC_wei
+
+Delta_AIC <- AIC_exp - AIC_wei
+Delta_AIC
+
+```
+We can also use the [AIC()](https://www.rdocumentation.org/packages/stats/versions/3.6.2/topics/AIC) 
+function from the `stats` package:
+
+```{r,warning=FALSE}
+
+# Comparing AIC
+AIC(surv_exp2, surv_wei2)
+
+aic_table <- data.frame(
+  Model = c("Exponential", "Weibull"),
+  AIC = c(AIC(surv_exp2), AIC(surv_wei2))
+)
+
+# Sort by AIC (lowest is best)
+aic_table <- aic_table[order(aic_table$AIC), ]
+print(aic_table)
+
+```
+
+The Weibull model has a lower AIC ($219.16 < 221.05$), indicating that the improvement 
+in log-likelihood gained by adding the shape parameter ($\gamma$) is large enough 
+to justify the extra complexity. Thus, the Weibull model is the preferred fit 
+for these data.
+
+A 'rule of thumb' in biostatistics is that an AIC difference ($\Delta AIC$) of 
+more than 2 is generally considered a meaningful improvement. In this data example, 
+$\Delta AIC = 1.89$, which is a borderline but justifiable reason to choose the 
+Weibull model.
+
+
+## Log-logistic distribution
+
+While the Weibull distribution is versatile, it is limited by the fact that its 
+hazard function is monotonic — it must always increase, always decrease, or remain 
+constant.
+
+In many clinical scenarios, the risk of an event increases initially 
+(e.g., following a major surgery such as transplantation) and then decreases as 
+the patient recovers. For these situations, the Log-logistic distribution offers 
+the necessary flexibility.
+
+- **Hazard function:**
+
+$$h(t) = \frac {\lambda \gamma t^{\gamma-1}} {1+\lambda t^\gamma}$$
+- **Survival function:**
+
+$$S(t) = \frac {1} {1+\lambda t^\gamma}$$
+- **Probability density function:**
+
+$$f(t) = \frac {\lambda \gamma t^{\gamma-1}} {(1+\lambda t^\gamma)^2}$$
+
+
+If $\gamma \le 1$ hazard decreases over time and if $\gamma > 1$ hazard first
+increases and then decreases over time:
+
+```{r,warning=FALSE}
+
+# Log-logistic hazard, survival and probability density functions
+# assumes scale parameter lambda is 1
+
+data_loglogistic <- data.frame(expand.grid(Time = seq(0.01, 3, 0.01),
+                                           Gamma = c(0.5, 1, 2, 5))) %>%
+  mutate(
+    # Log-logistic Hazard
+    Hazard = (Gamma*Time^(Gamma - 1)) / (1 + Time^Gamma),
+
+    # Log-logistic Survival
+    Survival = 1 / (1 + Time^Gamma),
+    
+    # Log-logistic PDF
+    PDF = (Gamma*Time^(Gamma - 1)) / (1 + Time^Gamma)^2,
+    
+    c = recode_factor(Gamma, `0.5` = "gamma == 0.5", 
+                      `1`   = "gamma == 1.0", 
+                      `2`   = "gamma == 2.0", 
+                      `5`   = "gamma == 5.0")
+  )
+
+# Plotting the hazard (the most interesting part of log-logistic)
+ggplot(data_loglogistic, aes(x = Time, y = Hazard, color = c)) +
+  geom_line(aes(linetype = c), linewidth = 0.8) +
+  labs(title = "Log-logistic Hazard Functions",
+       subtitle = "Notice the unimodal (up-then-down) shape when gamma > 1",
+       color = "", linetype = "") +
+  scale_colour_discrete(labels = scales::parse_format()) +
+  scale_linetype_discrete(labels = scales::parse_format()) +
+  theme_bw()
+
+# Plotting the survival
+ggplot(data_loglogistic, aes(x = Time, y = Survival, color = c)) +
+  geom_line(aes(linetype = c), linewidth = 0.8) +
+  labs(title = "Log-logistic Survival Functions",
+       color = "", linetype = "") +
+  scale_colour_discrete(labels = scales::parse_format()) +
+  scale_linetype_discrete(labels = scales::parse_format()) +
+  theme_bw()
+
+# Plotting probability density functions
+ggplot(data_loglogistic, aes(x = Time, y = PDF, color = c)) +
+  geom_line(aes(linetype = c), linewidth = 0.8) +
+  labs(title = "Log-logistic Probability Density Functions",
+       color = "", linetype = "") +
+  scale_colour_discrete(labels = scales::parse_format()) +
+  scale_linetype_discrete(labels = scales::parse_format()) +
+  theme_bw()
+
+```
+
+## Data example: Fitting a log-logistic model
+
+**1. Log-logistic accelerated failure time (AFT) model**
+
+The log-logistic distribution accommodates an AFT model but not a PH model.
+
+This can be seen by deriving the hazard ratio for this model:
+
+$$ HR = \frac {\lambda_1} {1+\lambda_1 t^\gamma} \frac {1+\lambda_0 t^\gamma} {\lambda_0}, $$
+as the time variable $t$ does not cancel out.
+
+As the hazard function in log-logistic model has a complex (often unimodal) shape, 
+the ratio of hazards between two groups typically changes as time progresses. 
+The log-logistic model can be used when we suspect non-proportional 
+hazards (e.g., when the treatment effect is very strong early on but fades later).
+
+*Fitting log-logistic AFT model*
+
+We can fit the log-logistic AFT model using 
+[flexsurvreg](https://www.rdocumentation.org/packages/flexsurv/versions/2.3.2/topics/flexsurvreg) 
+function from the
+[flexsurv](https://cran.r-project.org/web/packages/flexsurv/vignettes/flexsurv.pdf) 
+package, specifying `dist="llogis"`:
+
+```{r,warning=FALSE}
+
+# LOG-LOGISTIC AFT MODEL
+
+# fitting log-logistic AFT model using flexsurvreg
+surv_llog1 <- flexsurvreg( Surv(time, cens) ~ treat, data = leukdata, dist = "llogis")
+
+# gives estimate for shape parameter and scale parameter
+# gives alpha, TR and its 95% confidence interval
+print(surv_llog1)
+
+# This will calculate the actual hazard rates for each group at different times
+summary(surv_llog1, newdata = data.frame(treat = c("control", "6-MP")), type = "hazard")
+
+```
+We can also fit the log-logistic AFT model using 
+[survreg](https://www.rdocumentation.org/packages/survival/versions/2.8-2/topics/survreg) 
+function from the
+[survival](https://cran.r-project.org/web/packages/survival/survival.pdf) package, 
+specifying `dist="loglogistic"`:
+
+```{r,warning=FALSE}
+
+# LOG-LOGISTIC AFT MODEL
+
+# fitting log-logistic AFT model using survreg
+surv_llog2 <- survreg( Surv(time, cens) ~ treat, data = leukdata, dist = "loglogistic")
+summary(surv_llog2)
+
+# Function predict can compute median survival time 
+# Median survival time for placebo and treatment group
+median_times <- predict(surv_llog2, newdata = data.frame(treat = c("control", "6-MP")), 
+                        type = "quantile", p = 0.5)
+median_times
+
+```
+The shape parameter ($\hat{\gamma} = 1.83$) is reported on the natural scale in
+both outputs. As $\gamma > 1$, the hazard is unimodal - it rises to a peak and 
+then declines.
+
+The log-logistic model output from `flexsurvreg` for the scale parameter 
+($\hat{\gamma} = 6.637$) gives the **median survival time** for the baseline group 
+(placebo), i.e., 50% of the people in placebo group are expected to have experienced 
+relapse by 6.6 weeks.
+
+Consistent with the log-linear structure of the AFT model, the covariate effect
+$\hat{\alpha_1} = 1.265$ is reported on the **log-time scale**. The `flexsurvreg` 
+output also automatically provides the time ratio (TR)  
+$TR = \exp(\hat{\alpha_1}) = \exp(1.265) = 3.55$ and its 95% confidence interval
+(1.87, 7.71).
+
+We can also fit the log-logistic AFT model using 
+[flexsurvreg](https://www.rdocumentation.org/packages/flexsurv/versions/2.3.2/topics/flexsurvreg) 
+function from the
+[flexsurv](https://cran.r-project.org/web/packages/flexsurv/vignettes/flexsurv.pdf) 
+package, specifying `dist="llogis"`:
+
+
+**Log-logistic proportional odds (PO) model**
+
+As demonstrated above, the log-logistic model does not generally satisfy the 
+proportional hazards assumption because the hazard ratio varies over time. 
+However, it satisfies the **proportional odds (PO)** assumption and is thus a
+proportional odds model.
+
+A PO model is a model in which the **survival odds is assumed to remain constant over time**.
+In survival analysis, we can define odds similarly to how we do in logistic regression,
+as odds of an individual surviving beyond some time $t$:
+
+- **Survival Odds:** $\frac{S(t)}{1−S(t)}$
+
+- **Failure Odds:** $\frac{1-S(t)}{S(t)}$  
+
+For the log-logistic distribution, where $S(t) = \frac {1} {1+\lambda t^\gamma}$
+and $1-S(t) = \frac {\lambda t^\gamma} {1+\lambda t^\gamma}$, the survival odds
+is defined as:
+
+$$\text{Odds}(t) =  \frac {S(t)} {1−S(t)} = \frac {1} {\lambda t^\gamma} $$
+When we compare two groups (like treatment group 1 with $\lambda_1$ and placebo
+group 0 with $\lambda_0$), the ratio of their survival odds looks like this:
+
+$$\text{SOR} = \frac{\lambda_0 t^\gamma} {\lambda_1 t^\gamma} = \frac{\lambda_0} {\lambda_1} = \exp(-\beta_1),$$
+which is a constant as time $t$ cancels out. This is why the proportional Odds 
+assumption is satisfied for the log-logistic model.
+
+We can estimate the SOR for our data example from the above output using the
+relationships $\exp(-\beta_1) = \frac {\alpha_1} {\sigma} = \alpha_1 \gamma$,
+where the latter equation can be used for the `flexsurvreg` output and the either
+equation for the `survreg` output. We can also obtain SOR by writing out the 
+SOR formula and applying it to the extended model output on survival estimates:
+
+
+```{r,warning=FALSE}
+
+# calculating SOR
+
+# fitting log-logistic AFT model using flexsurvreg
+# surv_llog1 <- flexsurvreg( Surv(time, cens) ~ treat, data = leukdata, dist = "llogis")
+
+# fitting log-logistic AFT model using survreg
+# surv_llog2 <- survreg( Surv(time, cens) ~ treat, data = leukdata, dist = "loglogistic")
+
+# Extract the estimated coefficients
+# 'res' contains the estimates in the 'est' column
+estimates1 <- surv_llog1$res
+estimates1
+
+estimates2 <- coef(surv_llog2)
+estimates2
+
+# Get the natural shape (gamma) and the AFT alpha from flexsurvreg output
+gamma <- estimates1["shape", "est"] # flexsurvreg reports shape on natural scale
+gamma
+alpha_aft <- estimates1["treat6-MP", "est"]
+alpha_aft
+
+# Calculate the SOR
+SOR1 <- exp(gamma * alpha_aft)
+SOR1
+SOR2 <- exp(surv_llog2$coef[2] / surv_llog2$scale)
+SOR2
+
+
+# This will calculate the survival probabilities for each group at different times
+surv <- summary(surv_llog1, newdata = data.frame(treat = c("control", "6-MP")), type = "survival")
+
+# this will calculate SOR using survival probability at time 1
+# any time point can be used as SOR is a constant throughout the follow-up period
+SOR3 = ( surv[[2]]$est[1] / (1-surv[[2]]$est[1]) ) / ( surv[[1]]$est[1] / (1-surv[[1]]$est[1]) )
+SOR3
+
+```
+Thus, assuming that log-logistic model fits the data and the proportional odds
+assumption is met, it appears that at any given time point, 
+the **odds of still being in remission** for the treatment group are 10 times
+higher than the odds for the control (placebo) group.
+
+
+### Model validation
+
+Again, before interpreting log-logistic model output, we must ensure the
+log-logistic distribution fits the data and that the **accelerated failure time (AFT) assumption**. 
+and the **proportional odds (PO) assumption** are met. 
+
+We can carry out the same checks as before for Exponential and Weibull models:
+
+*1. Visual comparison with non-parametric estimates*
+
+First, we plot the fitted parametric survival curve $\hat{S}(t)$ directly over the 
+Kaplan-Meier (KM) curve.
+
+Previously, we created custom plots based on the survival functions for the
+exponential and Weibull models. However, we can also use the `flexsurvreg`
+survival probability predictions in the following way:
+
+```{r,warning=FALSE}
+
+# 1. Fit the Kaplan-Meier (observed) by treatment group
+km <- survfit(Surv(time, cens) ~ treat, data=leukdata)
+km_df <- tidy(km)
+# survival probability is now named estimate
+names(km_df)
+
+# 2. Get the 'predicted' data (Log-Logistic)
+# We generate predictions over a smooth sequence of time
+time_seq <- seq(0, max(leukdata$time), length.out = 100)
+pred_llogis <- summary(surv_llog1, t = time_seq, tidy = TRUE)
+#pred_llogis
+
+# 3. Create the Overlay Plot
+ggplot() +
+  # Observed: Kaplan-Meier steps
+  geom_step(data = km_df, aes(x = time, y = estimate, color = strata), 
+            linewidth = 0.8, alpha = 0.5) +
+  # Predicted: Log-Logistic smooth lines
+  geom_line(data = pred_llogis, aes(x = time, y = est, color = treat), 
+            linewidth = 1.2) +
+  labs(title = "Log-Logistic Model Fit: Predicted vs. Observed",
+       subtitle = "Smooth lines = Log-Logistic Model; Stepped lines = Kaplan-Meier",
+       x = "Time", y = "Survival Probability") +
+  theme_minimal()
+
+```
+
+The log-logistic distribution appears to provide a reasonable good fit to the data.
+
+*2. Linear transformation (graphical checks)*
+
+Second, we make comparisons with transformation of survival function, or in case
+the log-logistic model survival odds, into a **linear form**, and check whether
+the transformed data falls on a **straight line**.
+
+For log-logistic model, the survival odds simplifies to 
+
+$$\text{Odds}(t) =  \frac {S(t)} {1−S(t)} = \frac {1} {\lambda t^\gamma} = \lambda t^{-\gamma} $$
+and thus log(survival odds) $= \log \lambda - \gamma \log t$. Therefore,
+the **log survival odds*, $\log{\frac {S(t)} {1−S(t)}}$, 
+**is a linear function of log of time**, with intercept $\log{\lambda}$ and slope
+$-\gamma$.
+
+We can thus check whether **plotting the log survival odds** against the log of
+time gives a **straight line** of slope $-\gamma$:
+
+```{r,warning=FALSE}
+
+library(tidyverse) # reloaded to be able to run this block independently
+library(survival) # reloaded to be able to run this block independently
+
+# Plotting survival odds against log of time
+
+# 1. Fit the Kaplan-Meier (observed) by treatment group
+km <- survfit( Surv(time, cens) ~ treat, data=leukdata)
+km_df <- tidy(km)
+# survival probability is now named estimate
+names(km_df)
+
+# 2. Extract data and calculate log-odds
+# Log-odds = log( S(t) / (1 - S(t)) )
+km_data <- km_df %>%
+  mutate(log_time = log(time),
+      log_odds = log(estimate / (1-estimate))) %>%
+  filter(is.finite(log_odds)) # Remove infinity values at S(t)=1 or 0
+
+# 3. Create the plot
+ggplot(km_data, aes(x = log_time, y = log_odds, color = factor(strata))) +
+  geom_point() +
+  geom_line() +
+  geom_smooth(method = "lm", se = FALSE, linetype = "dashed") +
+  labs(title = "Log-Logistic Diagnostic: Log-Odds Plot",
+       subtitle = "Linearity = Log-logistic distribution; Parallelism = Proportional Odds",
+       x = "log(Time)", 
+       y = "log(S(t) / (1-S(t))",
+       color = "Group") +
+  theme_minimal()
+
+```
+Both plots look reasonably straight suggesting that the log-logistic assumption 
+is reasonable.
+
+We can also use this plot to assess **proportional odds (PO) assumption**. If the 
+odds are proportional, the two lines should be parallel as they appear to be. 
+
+
+*3. Graphical check for accelerated failure time assumption*
+
+We can evaluate whether the accelerated failure time (AFT) assumption for the
+log-logistic AFT model holds by checking whether there is a **constant horizontal shift** 
+between survival curves plotted against log of time:
+
+
+```{r,warning=FALSE}
+
+library(broom) # reloaded to be able to run this block independently
+library(tidyverse) # reloaded to be able to run this block independently
+library(flexsurv) # reloaded to be able to run this block independently
+
+# Plotting survival curves on log time scale to see the AFT model constant shift
+
+# 1. Fit the Kaplan-Meier (observed) by treatment group
+km <- survfit( Surv(time, cens) ~ treat, data=leukdata)
+summary(km)
+names(km)
+
+# 2. Create a data frame for ggplot
+plot_data <-broom::tidy(km)
+plot_data
+# survival probability is now named estimate
+names(plot_data)
+
+# 3. Fit log-logistic model
+surv_llog1 <- flexsurvreg( Surv(time, cens) ~ treat, data = leukdata, dist = "llogis")
+#surv_exp1 <- flexsurvreg(Surv(time, cens) ~ treat, data = leukdata, dist = "exp")
+#surv_wei3 <- flexsurvreg(Surv(time,cens) ~ treat, data = leukdata, dist = "weibull")
+
+# 4. Generate predicted survival probabilities for a range of times
+# This creates a smooth curve for the log-time axis
+time_seq <- seq(0.1, 35, length.out = 100)
+pred_llogis <- summary(surv_llog1, t = time_seq, tidy = TRUE)
+#pred_exp <- summary(surv_exp1, t = time_seq, tidy = TRUE)
+#pred_wei <- summary(surv_wei3, t = time_seq, tidy = TRUE)
+
+# 5. Plot everything with a Log-transformed X-axis
+
+# for log-logistic model only
+ggplot() +
+  # Kaplan-Meier steps (the raw data)
+  geom_step(data = plot_data, aes(x = time, y = estimate, color = strata), linewidth = 0.8) +
+  # Log-logistic fitted curves
+  geom_line(data = pred_llogis, aes(x = time, y = est, color = treat), linetype = "dotdash", linewidth = 1) +
+  scale_x_log10() + 
+  labs(title = "KM vs. Log-logistic AFT fit on log time scale",
+       x = "Log(Time)", y = "Survival Probability") +
+  theme_bw()
+
+# also including exponential and Weibull models
+ggplot() +
+  # Kaplan-Meier steps (the raw data)
+  geom_step(data = plot_data, aes(x = time, y = estimate, color = strata), linewidth = 0.8) +
+  # Weibull fitted curves
+  geom_line(data = pred_wei, aes(x = time, y = est, color = treat), linetype = "dotted", linewidth = 1) +
+  # Exponential fitted curves
+  geom_line(data = pred_exp, aes(x = time, y = est, color = treat), linetype = "dashed", linewidth = 1) +
+  # Log-logistic fitted curves
+  geom_line(data = pred_llogis, aes(x = time, y = est, color = treat), linetype = "dotdash", linewidth = 1) +
+  scale_x_log10() + 
+  labs(title = "KM vs. Parametric fits on log time scale",
+       subtitle = "Dotted = Weibull, Dashed = Exponential, Dotdash = Log-logistic",
+       x = "Log(Time)", y = "Survival Probability") +
+  theme_bw()
+
+
+```
+
+The shift between survival curves does seem constant for log-logistic model.
+
+
+### Model selection
+
+We can use AIC to compare the goodness-of-fit of exponential, Weibull and 
+log-logistic models:
+
+```{r,warning=FALSE}
+
+aic_table <- data.frame(
+  Model = c("Exponential", "Weibull", "Log-Logistic"),
+  AIC = c(AIC(surv_exp1), AIC(surv_wei3), AIC(surv_llog1))
+)
+# Sort by AIC (lowest is best)
+aic_table <- aic_table[order(aic_table$AIC), ]
+print(aic_table)
+
+```
+
+Based on AIC, Weibull model and even exponential model appear to fit the data
+better than the log-logistic model although the differences in the AIC values
+between models are very small.
+
+
+## Log-normal distribution
+
+The log-normal distribution is often used as an alternative to the log-logistic 
+distribution because their hazard shapes are very similar. Both are flexible models 
+within the accelerated failure time (AFT) framework.
+
+A random variable $T$ follows a log-normal distribution with parameters $\mu$ 
+(location) and $\sigma$ (scale) if its natural logarithm, $\log(T)$, follows a 
+normal distribution with mean $\mu$ and variance $\sigma^2$:
+
+$$\log(T) \sim N(\mu, \sigma^2)$$
+The probability density function of $T$ is derived from the standard normal density
+$\phi(z)$:
+
+$$f(t) = \frac{1}{t\sigma} \phi\left( \frac{\log(t) - \mu}{\sigma} \right) = \frac{1}{t\sigma\sqrt{2\pi}} \exp\left[ -\frac{(\log(t) - \mu)^2}{2\sigma^2} \right]$$
+Unlike the exponential, Weibull and log-logistic models, the survival and hazard 
+functions for the log-normal distribution cannot be expressed in simple algebraic 
+forms. Instead, they are expressed in terms of the standard normal cumulative 
+distribution function, $\Phi(z)$:
+
+$$S(t) = 1- \Phi\left( \frac{\log(t) - \mu}{\sigma} \right) = \int_t^\infty \frac{1}{x\sigma\sqrt{2\pi}} \exp\left[ -\frac{(\log(x) - \mu)^2}{2\sigma^2} \right]dx$$
+
+$$h(t) = \frac{\frac{1}{t\sigma} \phi\left( \frac{\log(t) - \mu}{\sigma} \right)} {1- \Phi\left( \frac{\log(t) - \mu}{\sigma} \right)} = \frac{\frac{1}{t\sigma\sqrt{2\pi}} \exp\left[ -\frac{(\log(t) - \mu)^2}{2\sigma^2} \right]}{\int_t^\infty \frac{1}{x\sigma\sqrt{2\pi}} \exp\left[ -\frac{(\log(x) - \mu)^2}{2\sigma^2} \right]dx}$$
+Thus, hazard and survival functions can only be expressed in terms of integrals.
+Therefore, there is no closed-form solution for them. R software uses numerical
+approximation to calculate these values.
+
+Like the log-logistic hazard where $\gamma > 1$, the log-normal hazard is 
+unimodal - it increases to a peak and then decreases towards zero:
+
+```{r,warning=FALSE}
+
+library(tidyverse) # reloaded to be able to run this code block independently
+
+# Log-normal hazard, survival and probability density functions
+
+# assumes mu = 0 (log1), meaning mean is t = 1
+
+# Defining parameters: mu (meanlog) and sigma (sdlog)
+# We will vary sigma to show how it affects the "peak" of the hazard
+data_lognormal <- data.frame(expand.grid(Time = seq(0.01, 3, 0.01),
+                                         Sigma = c(0.2, 0.5, 0.8, 1.2))) %>%
+  mutate(
+    # PDF: f(t)
+    PDF = dlnorm(Time, meanlog = 0, sdlog = Sigma),
+    
+    # Survival: S(t) = 1 - CDF
+    Survival = plnorm(Time, meanlog = 0, sdlog = Sigma, lower.tail = FALSE),
+    
+    # Hazard: h(t) = f(t) / S(t)
+    Hazard = PDF / Survival,
+    
+    # Formatting labels for the plot legend
+    s_label = recode_factor(Sigma, 
+                            `0.2` = "sigma == 0.2", 
+                            `0.5` = "sigma == 0.5", 
+                            `0.8` = "sigma == 0.8", 
+                            `1.2` = "sigma == 1.2")
+  )
+
+# 1. Plotting the Hazard Functions
+ggplot(data_lognormal, aes(x = Time, y = Hazard, color = s_label)) +
+  geom_line(aes(linetype = s_label), linewidth = 0.8) +
+  labs(title = "Log-Normal Hazard Functions",
+       subtitle = "The 'unimodal' shape: risk increases then eventually declines to zero",
+       x = "Time (t)", y = "Hazard h(t)", color = "", linetype = "") +
+  scale_colour_discrete(labels = scales::parse_format()) +
+  scale_linetype_discrete(labels = scales::parse_format()) +
+  theme_bw()
+
+# 2. Plotting the Survival Functions
+ggplot(data_lognormal, aes(x = Time, y = Survival, color = s_label)) +
+  geom_line(aes(linetype = s_label), linewidth = 0.8) +
+  labs(title = "Log-Normal Survival Functions",
+       x = "Time (t)", y = "Survival S(t)", color = "", linetype = "") +
+  scale_colour_discrete(labels = scales::parse_format()) +
+  scale_linetype_discrete(labels = scales::parse_format()) +
+  theme_bw()
+
+# 3. Plotting the Probability Density Functions (PDF)
+ggplot(data_lognormal, aes(x = Time, y = PDF, color = s_label)) +
+  geom_line(aes(linetype = s_label), linewidth = 0.8) +
+  labs(title = "Log-Normal Probability Density Functions",
+       x = "Time (t)", y = "Density f(t)", color = "", linetype = "") +
+  scale_colour_discrete(labels = scales::parse_format()) +
+  scale_linetype_discrete(labels = scales::parse_format()) +
+  theme_bw()
+
+```
+However, if the peak occurs very early (i.e., $\sigma$ is large), the hazard may *appear* to be strictly decreasing over the actual range of the observed data:
+
+```{r,warning=FALSE}
+
+library(tidyverse) # reloaded to be able to run this code block independently
+
+# Log-normal hazard for set of mu and sigma parameters, including large ones
+
+params <- data.frame(
+  mu =    c(0.1, 1, 2, 7),
+  sigma = c(0.5, 0.5, 3, 5)
+)
+
+# Generate data with a Logarithmic sequence of Time to capture the peak
+data_plot <- params %>%
+  group_by(mu, sigma) %>%
+  do(data.frame(Time = exp(seq(-5, 10, length.out = 1000)))) %>% 
+  mutate(
+    # PDF
+    PDF = dlnorm(Time, meanlog = mu, sdlog = sigma),
+    # Survival
+    Survival = plnorm(Time, meanlog = mu, sdlog = sigma, lower.tail = FALSE),
+    # Hazard: h(t) = f(t)/S(t)
+    Hazard = PDF / Survival,
+    Label = factor(paste0("mu=", mu, ", sigma=", sigma))
+  )
+
+# Plotting hazard functions
+ggplot(data_plot, aes(x = Time, y = Hazard, color = Label)) +
+  geom_line(linewidth = 1) +
+  xlim(0, 10) + 
+  labs(title = "Log-normal Hazard Functions",
+       x = "Time (t)", y = "Hazard Rate h(t)") +
+  theme_bw()
+
+```
+
+## Data example: Fitting a log-normal model
+
+The log-normal distribution accommodates an AFT model but not a PH model or a PO
+model. The covariates act as a multiplier on time, which matches the AFT assumption.
+However, When calculating the hazard ratio for a log-normal model, the $t$ terms 
+in the complex numerator and denominator do not cancel out. Consequently, the HR 
+changes over time, violating PH assumption. Similarly, when calculating the survival 
+odds ratio, the $t$ terms also do not cancel out, violating the PO assumption.
+
+
+*Fitting log-normal AFT model*
+
+We can fit the log-normal AFT model using 
+[flexsurvreg](https://www.rdocumentation.org/packages/flexsurv/versions/2.3.2/topics/flexsurvreg) 
+function from the
+[flexsurv](https://cran.r-project.org/web/packages/flexsurv/vignettes/flexsurv.pdf) 
+package, specifying `dist="lnorm"`:
+
+```{r,warning=FALSE}
+
+# LOG-NORMAL AFT MODEL
+
+# Fitting Log-normal model using flexsurvreg
+surv_ln1 <- flexsurvreg(Surv(time, cens) ~ treat, data = leukdata, dist = "lnorm")
+print(surv_ln1)
+
+# This will calculate the actual hazard rates for each group at different times
+summary(surv_ln1, newdata = data.frame(treat = c("control", "6-MP")), type = "hazard")
+
+```
+The parameters for a log-normal model in `flexsurvreg` are reported as follows:
+
+- `meanlog` ($\hat{\mu}$) is reported on the **log-time scale**. It represents 
+the mean of the log-transformed survival times in the control (placebo) group. 
+- `sdlog` ($\hat{\sigma}$) is reported on the **natural scale** to represent the 
+actual standard deviation ($\sigma$) of survival times.
+- The coefficient ($\hat{\alpha_1}$) for the treatment covariate (`treat6-MP`) is   
+reported on the **log-time scale**. As $\hat{\alpha_1}>1$, treatment increases the
+survival time. To get the TR, we must again exponentiate the coefficient:
+($\exp(1.347) = 3.85$). The TR (`exp(est)` = 3.845) and its 95% confidence interval 
+(2.068, 7.125) are automatically provided in the `flexsurvreg` output.
+
+
+We can also fit the log-normal AFT model using 
+[survreg](https://www.rdocumentation.org/packages/survival/versions/2.8-2/topics/survreg) 
+function from the
+[survival](https://cran.r-project.org/web/packages/survival/survival.pdf) package, 
+specifying `dist="lognormal"`:
+
+```{r,warning=FALSE}
+
+# LOG-NORMAL AFT MODEL
+
+# Fitting Log-normal model using survreg
+surv_ln2 <- survreg(Surv(time, cens) ~ treat, data = leukdata, dist = "lognormal")
+summary(surv_ln2)
+
+# Function predict can compute median survival time 
+# Median survival time for placebo and treatment group
+median_times <- predict(surv_ln2, newdata = data.frame(treat = c("control", "6-MP")), 
+                        type = "quantile", p = 0.5)
+median_times
+
+```
+The `survreg` output is identical to the `flexsurvreg` output, with scale 
+($\sigma$) parameter reported both on the log-time scale and natural scale.
+
+
+### Model validation
+
+Again, before interpreting log-normal model output, we must ensure the
+log-normal distribution fits the data and that the **accelerated failure time (AFT) assumption**. 
+is met. 
+
+We can carry out similar checks as before for other models:
+
+*1. Visual comparison with non-parametric estimates*
+
+As before, we can plot the fitted parametric survival curve $\hat{S}(t)$ directly over the 
+Kaplan-Meier (KM) curve.
+
+For a quick visual check, we can use 
+[plot(x)](https://www.rdocumentation.org/packages/graphics/versions/3.6.2/topics/plot) 
+function. If `x` is a `flexsurvreg` object, R actually runs a function called 
+[plot.flexsurvreg()](https://www.rdocumentation.org/packages/flexsurv/versions/2.3.2/topics/plot.flexsurvreg).
+It plots survival from a parametric model against non-parametric estimates, when
+you specify `type = "survival"`:
+
+```{r,warning=FALSE}
+
+# Plot the Survival Function against the Kaplan-Meier data
+plot(surv_ln1, type = "survival", main = "Log-Normal Survival Fit")
+
+```
+
+By plotting log-normal and log-logistic models in the same figure, we can see that they provide very similar fit:
+
+```{r,warning=FALSE}
+  
+# Plot both to see which fits the data points better
+plot(surv_ln1, type = "survival", ci = FALSE, col = "blue")
+lines(surv_llog1, type = "survival", ci = FALSE, col = "red")
+legend("topright", legend = c("Log-Normal", "Log-logistic"), col = c("blue", "red"), lty = 1)
+
+```
+
+Log-normal model appears to provide a reasonably good fit to the data.
+
+
+*2. Linear transformation (Graphical check)*
+
+If $T$ follows a log-normal distribution, then $log(T)$ must follow a normal 
+distribution. The Z score (normal quantile) is $Z = \frac{\log{(t)}-\mu} {\sigma}$, 
+which can be rearranged as $ Z = \frac{1}{\sigma} \log{(t)} - \frac{\mu} {\sigma}$.
+
+We can thus check whether plotting the **standard normal quantiles**, calculated 
+as $\Phi^{-1}[1-S(t)]$, against $log(t)$, gives a straight line, with intercept 
+$-\frac{\mu} {\sigma}$ and slope $\frac{1}{\sigma}$:
+
+
+```{r,warning=FALSE}
+
+library(tidyverse) # reloaded to be able to run this block independently
+library(survival) # reloaded to be able to run this block independently
+
+# Plotting normal quantiles against log of time 
+
+# Kaplan-Meier fitted before: km
+
+# 1. Fit the Kaplan-Meier (observed) by treatment group
+km <- survfit(Surv(time, cens) ~ treat, data=leukdata)
+
+# 2. Create a data frame for filtering and label the groups
+# KM object often starts with a survival of 1 at time 0 and might end with a
+# survival of 0
+# gnorm(0) is -infinity and qnorm(1) is +infinity
+# lm() below fails when it hits infinite values
+# to fix this, we need to create a temporary data from, filter out those infinite
+# points, and then plot the results
+df <- data.frame(
+  x=log(km$time), y=qnorm(1 - km$surv),
+  # in survfit object, the information about the number of observations in each
+  # group is stored in a vector called km$strata
+  group = rep(names(km$strata), km$strata)
+)
+
+# 3. Remove the infinite values (where survival is 0 or 1)
+df_clean <- df[is.finite(df$y), ]
+
+# 4. Plot the cleaned data
+plot(df_clean$x, df_clean$y, 
+     main = "Log-Normal Q-Q Plot",
+     xlab = "log(Time)", ylab = "Normal Quantiles"#,
+     #pch = 19,
+     #col ="blue"
+     )
+
+# 5. Extract and compare the slopes for each group
+for(g in names(km$strata)){
+  group_data <- subset(df_clean, group == g)
+  fit_lm <- lm(y ~ x, data = group_data)
+  
+  coef(fit_lm)
+
+# 6. Add a regression line for each group
+
+  abline(fit_lm, col = ifelse(g == names(km$strata)[1], "red", "blue"))
+
+# 7. Calculate sigma (1/slope) 
+  slope <- coef(fit_lm)["x"]
+  sigma_est <- 1 / slope
+  print(paste("Group:", g, "| Estimated Sigma (1/slope):", round(sigma_est, 4)))
+}
+
+# 8. Add a legend
+legend("topleft", legend = names(km$strata), col = c("red", "blue"), lty = 1, lwd = 2)
+
+```
+
+The plot of normal quantiles against $\log(t)$ appear to produce relatively 
+straight lines in both groups.
+
+We can also use this plot to assess **accelerated failure time assumption**.
+If the AFT assumption is true, the treatment only changes the *timing* ($\mu$),
+not the *spread* or *shape* ($\sigma$). Therefore, 
+**the slopes for both groups must be equal**.
+
+Parallel lines on the plot are the visual proof that $\sigma$ is constant across
+the groups. From the above plot it appears that the two lines are not exactly 
+parallel. Above code also prints out the estimated $\hat{\sigma}$ (1/slope) for
+both groups and they appear somewhat different, unlike the AFT model assumes. 
+This implies that the treatment may be changing not only the timing but also the 
+variance of the survival times. If this is the case, a single scale parameter 
+$\sigma$ is insufficient.
+
+In `flexsurvreg`, it is possible to allow **ancillary parameters** like $\sigma$
+to depend on the treatment. You can do this using the `anc` argument. This tells
+R to estimate a separate $\sigma$ for each group:
+
+```{r,warning=FALSE}
+
+# Fitting Log-normal model using flexsurvreg, 
+# modelling both location and scale by treatment
+surv_ln1_non_aft <- flexsurvreg(Surv(time, cens) ~ treat, anc = list(sdlog = ~treat), data = leukdata, dist = "lnorm")
+print(surv_ln1_non_aft)
+
+# This will calculate the actual hazard rates for each group at different times
+summary(surv_ln1, newdata = data.frame(treat = c("control", "6-MP")), type = "hazard")
+
+```
+The output is otherwise similar to the AFT model output, but gives separate
+$\sigma$ for control and treatment group, with the latter reported both 
+on the log-time scale and natural scale (`exp(est)`). The two scale parameters
+for control group $\hat{\sigma_0} = 0.9032$ and $\hat{\sigma_1} = 1.0836$ do 
+not appear very different and fit within each other's 95% confidence intervals.
+However, we can carry out a formal LRT test to evaluate which model fits the
+data better.
+
+
+*3. Graphical check for accelerated failure time assumption*
+
+We can also evaluate whether the accelerated failure time (AFT) assumption for the
+log-normal AFT model holds by checking whether there is a **constant horizontal shift** 
+between survival curves plotted against log of time:
+
+
+```{r,warning=FALSE}
+
+library(broom) # reloaded to be able to run this block independently
+library(tidyverse) # reloaded to be able to run this block independently
+library(flexsurv) # reloaded to be able to run this block independently
+
+# Plotting survival curves on log time scale to see the AFT model constant shift
+
+# 1. Fit the Kaplan-Meier (observed) by treatment group
+km <- survfit( Surv(time, cens) ~ treat, data=leukdata)
+summary(km)
+names(km)
+
+# 2. Create a data frame for ggplot
+plot_data <-broom::tidy(km)
+plot_data
+# survival probability is now named estimate
+names(plot_data)
+
+# 3. Fit log-normal model (and other models for comparison)
+#surv_exp1 <- flexsurvreg(Surv(time, cens) ~ treat, data = leukdata, dist = "exp")
+#surv_wei3 <- flexsurvreg(Surv(time,cens) ~ treat, data = leukdata, dist = "weibull")
+#surv_llog1 <- flexsurvreg( Surv(time, cens) ~ treat, data = leukdata, dist = "llogis")
+surv_ln1 <- flexsurvreg(Surv(time, cens) ~ treat, data = leukdata, dist = "lnorm")
+
+
+# 4. Generate predicted survival probabilities for a range of times
+# This creates a smooth curve for the log-time axis
+time_seq <- seq(0.1, 35, length.out = 100)
+#pred_exp <- summary(surv_exp1, t = time_seq, tidy = TRUE)
+#pred_wei <- summary(surv_wei3, t = time_seq, tidy = TRUE)
+#pred_llogis <- summary(surv_llog1, t = time_seq, tidy = TRUE)
+pred_lnorm <- summary(surv_ln1, t = time_seq, tidy = TRUE)
+
+# 5. Plot everything with a Log-transformed X-axis
+
+# for log-normal model only
+ggplot() +
+  # Kaplan-Meier steps (the raw data)
+  geom_step(data = plot_data, aes(x = time, y = estimate, color = strata), linewidth = 0.8) +
+  # Log-logistic fitted curves
+  geom_line(data = pred_lnorm, aes(x = time, y = est, color = treat), linetype = "longdash", linewidth = 1) +
+  scale_x_log10() + 
+  labs(title = "KM vs. Log-normal AFT fit on log time scale",
+       x = "Log(Time)", y = "Survival Probability") +
+  theme_bw()
+
+# also including exponential, Weibull, and log-logistic models
+ggplot() +
+  # Kaplan-Meier steps (the raw data)
+  geom_step(data = plot_data, aes(x = time, y = estimate, color = strata), linewidth = 0.8) +
+   # Exponential fitted curves
+  geom_line(data = pred_exp, aes(x = time, y = est, color = treat), linetype = "dashed", linewidth = 1) +
+  # Weibull fitted curves
+  geom_line(data = pred_wei, aes(x = time, y = est, color = treat), linetype = "dotted", linewidth = 1) +
+  # Log-logistic fitted curves
+  geom_line(data = pred_llogis, aes(x = time, y = est, color = treat), linetype = "dotdash", linewidth = 1) +
+  # Log-normal fitted curves
+  geom_line(data = pred_lnorm, aes(x = time, y = est, color = treat), linetype = "longdash", linewidth = 1) +
+  scale_x_log10() + 
+  labs(title = "KM vs. Parametric fits on log time scale",
+       subtitle = "Dashed = Exponential, Dotted = Weibull, Dotdash = Log-logistic, Longdash = Log-normal",
+       x = "Log(Time)", y = "Survival Probability") +
+  theme_bw()
+
+
+```
+
+The shift between survival curves seems constant for log-normal model.
+
+
+### Model selection
+
+Since the AFT model with common scale parameter (constrained: $\sigma_0 = \sigma_1$) 
+for treatment and control group is nested within the non-AFT model with separate 
+scale parameters (unconstrained: $\sigma_0 \ne \sigma_1$) for treatment and control
+groups, we can compare their fit using the likelihood ratio test:
+
+```{r,warning=FALSE}
+
+# 1. Fit the standard AFT model (common scale)
+surv_ln1 <- flexsurvreg(Surv(time, cens) ~ treat, data = leukdata, dist = "lnorm")
+
+# 2. Fit the extended non-AFT model (separate scales using 'anc')
+surv_ln1_non_aft <- flexsurvreg(Surv(time, cens) ~ treat, anc = list(sdlog = ~treat), data = leukdata, dist = "lnorm")
+
+# 3. Perform the Likelihood Ratio Test
+# Calculation: 2 * (LogLik(extended) - LogLik(standard))
+lrt_stat <- 2 * (surv_ln1_non_aft$loglik - surv_ln1$loglik)
+p_val <- 1 - pchisq(lrt_stat, df = 1)
+
+# 4. Display the results
+cat("LRT Statistic:", round(lrt_stat, 4), "\n")
+cat("P-value:", round(p_val, 4), "\n")
+
+```
+As the p-value is not significant, it appears that the slopes on the plot and in
+the non-AFT model were not different enough to require a more flexible model.
+We conclude that the treatment apparently influences only the timing (location) 
+and not the variability (scale) of the event, supporting the AFT assumption, and
+not requiring us to model the ancillary parameters.
+
+We can use AIC to compare the goodness-of-fit of exponential, Weibull, 
+log-logistic, and log-normal models, including the AFT and non-AFT log-normal
+models:
+
+```{r,warning=FALSE}
+
+aic_table <- data.frame(
+  Model = c("Exponential", "Weibull", "Log-Logistic", "Log-Normal AFT", "Log-Normal non-AFT"),
+  AIC = c(AIC(surv_exp1), AIC(surv_wei3), AIC(surv_llog1), AIC(surv_ln1), AIC(surv_ln1_non_aft))
+)
+# Sort by AIC (lowest is best)
+aic_table <- aic_table[order(aic_table$AIC), ]
+print(aic_table)
+
+```
+
+Based on AIC, the AFT log-normal model appears second best after the Weibull model 
+and the non-AFT log-normal last, although the differences in the AIC values
+between models are again very small.
+
+
+## Gamma distribution
+
+The shape of the gamma distribution is similar to that of the log-logistic or 
+log-normal distributions, but they behave differently in their tails, as the tail 
+of the gamma distribution decays more quickly.
+
+If a random variable $T$ follows a gamma distribution with parameters $\lambda$ 
+and $k$, then
+
+Probability density function:
+
+$$f(t) = \frac{\lambda^k t^{k-1} e^{-\lambda t}}{\Gamma(k)},$$
+where the Gamma function is $\Gamma(k) = \int_0^\infty x^{k-1} e^{-x} dx$.
+
+Survival function:
+
+$$S(t) = \frac{\Gamma(k, \lambda t)}{\Gamma(k)},$$
+
+where $\Gamma(k, \lambda t) = \int_{\lambda t}^\infty x^{k-1} e^{-x} dx$ is the 
+upper incomplete Gamma function.
+
+Hazard function:
+
+$$h(t) = \frac{\lambda^k t^{k-1} e^{-\lambda t}}{\Gamma(k,\lambda t)},$$
+Hazard and survival functions cannot usually be expressed in simple closed forms 
+and must be evaluated using integrals or numerical methods. 
+
+
+## Generalised gamma distribution
+
+The generalised gamma distributionThe generalised gamma distribution is a flexible 
+three-parameter family ($\lambda, k, p$) that generalizes several key distributions.
+
+If a random variable $T$ follows a generalised gamma distribution with parameters 
+$\lambda$, $k$, and $p$ then
+
+Probability density function:
+
+$$f(t) = \frac{p \lambda^k t^{p k - 1} e^{-(\lambda t)^p}}{\Gamma(k)}$$
+Survival function:
+
+$$S(t) = \frac{\Gamma(k, (\lambda t))^p}{\Gamma(k)},$$
+
+where $\Gamma(k, (\lambda t)^p = \int_{(\lambda t)^p}^\infty x^{k-1} e^{-x} dx$. 
+
+Hazard function:
+
+$$h(t) = \frac{p \lambda^k t^{p k - 1} e^{-(\lambda t)^p}}{\Gamma(k, (\lambda t))^p}$$
+The power of this distribution lies in its nesting. It includes the following as 
+special cases:
+
+- **Exponential:** when $k=1$ and $p=1$
+- **Weibull:** when $k=1$
+- **Lognormal:** as $k \to \infty$
+- **Standard Gamma:** when $p=1$.
+
+
+## Data example: Fitting gamma and generalised gamma models
+
+Both the gamma and generalised gamma distributions are **AFT models by nature**.
+
+Under specific conditions, they **can accommodate PH models**:
+
+- If $k = 1$, the gamma model simplifies to the exponential model, which is a PH 
+model.
+- If $k = 1$ and $p = 1$, the generalised gamma simplifies to the exponential model.
+- If $k = 1$, the generalised gamma simplifies to the Weibull model, which is 
+also a PH model.
+
+These models are often used as **non-proportional hazards models**, allowing 
+hazard ratios to change over time when the PH assumptions of simpler models fail.
+
+We can plot the hazard functions, survival functions and probability density 
+functions, showing exponential, Weibull and gamma models as special cases of
+the generalised gamma distribution:
+
+```{r,warning=FALSE}
+
+# Plotting hazard, survival and probability density functions
+
+#library(flexsurv)
+#library(ggplot2)
+#library(tidyr)
+#library(dplyr)
+
+# 1. Define the parameter sets for comparison
+# f(x; lambda, k, p)
+# We will keep lambda (scale) constant at 1.0 for all
+t <- seq(0.01, 5, length.out = 200)
+
+# using flexsurv notation for generalised gamma model
+models <- data.frame(
+  label = c("Gen. Gamma (k=2, p=1.5)", "Gamma (p=1, k=2)", "Weibull (k=1, p=1.5)", "Exponential (k=1, p=1)"),
+  # this is simplification that only works for Weibull and exponential
+  mu = 0,        # mu = log(1/lambda). If lambda=1, mu=0. 
+  sigma = c(1/(1.5*sqrt(2)), 1/sqrt(2), 1/1.5, 1), # sigma = 1/(p*sqrt(k))
+  Q = c(1/sqrt(2), 1/sqrt(2), 1, 1)                # Q = 1/sqrt(k)
+)
+
+# 2. Generate the data for PDF, Survival, and Hazard
+plot_data <- expand.grid(t = t, label = models$label) %>%
+  left_join(models, by = "label") %>%
+  mutate(
+    PDF = dgengamma(t, mu = mu, sigma = sigma, Q = Q),
+    Survival = pgengamma(t, mu = mu, sigma = sigma, Q = Q, lower.tail = FALSE),
+    Hazard = hgengamma(t, mu = mu, sigma = sigma, Q = Q)
+  )
+
+# 3. Create the plots
+# Function to generate uniform themed plots
+make_plot <- function(data, y_var, title) {
+  ggplot(data, aes(x = t, y = .data[[y_var]], color = label)) +
+    geom_line(linewidth = 1.2) +
+    labs(title = title, 
+         x = "Time", 
+         y = y_var, 
+         color = "Distribution Family") +
+    theme_minimal(base_size = 12) + # Slightly larger text for readability
+    scale_color_brewer(palette = "Set1") #+
+    #theme(legend.position = "bottom") # Moves legend to bottom for better horizontal space
+}
+
+p1 <- make_plot(plot_data, "Hazard", "Hazard Function (h(t))")
+p2 <- make_plot(plot_data, "Survival", "Survival Function (S(t))")
+p3 <- make_plot(plot_data, "PDF", "Probability Density Function (PDF)")
+
+# Display plots
+print(p1)
+print(p2)
+print(p3)
+
+```
+
+*Fitting gamma AFT model*
+
+We can fit the gamma AFT model using 
+[flexsurvreg](https://www.rdocumentation.org/packages/flexsurv/versions/2.3.2/topics/flexsurvreg) 
+function from the
+[flexsurv](https://cran.r-project.org/web/packages/flexsurv/vignettes/flexsurv.pdf) 
+package, specifying `dist="gamma"`:
+
+```{r,warning=FALSE}
+
+# GAMMA AFT MODEL
+
+# Fitting gamma model using flexsurvreg
+surv_g1 <- flexsurvreg(Surv(time, cens) ~ treat, data = leukdata, dist = "gamma")
+print(surv_g1)
+
+# This will calculate the actual hazard rates for each group at different times
+# summary(surv_g1, newdata = data.frame(treat = c("control", "6-MP")), type = "hazard")
+
+# This gives you the Time Ratio
+# untransformed coefficients
+surv_g1$coefficients
+exp(-surv_g1$coefficients[-c(1,2)])
+
+```
+
+
+The parameters for a gamma model in `flexsurvreg` are as follows:
+
+- `shape` ($\hat{k}$): This determines the behavior of the hazard over time:
+    - If `shape > 1`: The hazard is **increasing**
+    - If `shape < 1`: The hazard is **decreasing**
+    - If `shape = 1`: The hazard is **constant** (if the confidence interval for
+    shape includes 1, model can likely be simplified to an exponential model)
+- `rate` ($\hat{\lambda}$): This is a scale parameter that relates to how stretched
+out the distribution is over time. The relationship between the rate $\lambda$ 
+and the location ($\mu$) in the AFT model is inverse. By default, flexsurv uses
+a log-link: ($\mu$) = $-log(\lambda)$. Thus, a higher rate means that events happen 
+faster (smaller $\mu$) and lower rate means that events happen slower (larger $\mu$).
+`rate` is thus the baseline log-rate for someone with all covariates zero.
+- The coefficient ($\hat{\alpha_1}$): Because flexsurv models the rate parameter
+($\lambda$), the coefficients reported in the `est` column have a specific AFT meaning:
+    - Positive coefficient: Increases the *rate* of failure (shorter survival time) 
+    - Negative coefficient: Decreases the *rate* of failure (longer survival time)
+
+Therefore, in gamma model output `exp(est)` refers to **acceleration factor (AF)**
+rather than **time ratio (TR)**. We can obtain 
+$TR = \frac{1}{\exp(\hat{\alpha_1})} = \exp(-(-1.2831)) = 3.60$.
+
+
+*Fitting generalised gamma AFT model*
+
+We can fit the generalised gamma AFT model using 
+[flexsurvreg](https://www.rdocumentation.org/packages/flexsurv/versions/2.3.2/topics/flexsurvreg) 
+function from the
+[flexsurv](https://cran.r-project.org/web/packages/flexsurv/vignettes/flexsurv.pdf) 
+package, specifying `dist="gengamma"`:
+
+
+```{r,warning=FALSE}
+
+# GENERALISED GAMMA AFT MODEL
+
+# Fitting gamma model using flexsurvreg
+surv_gg1 <- flexsurvreg(Surv(time, cens) ~ treat, data = leukdata, dist = "gengamma")
+print(surv_gg1)
+
+# This will calculate the actual hazard rates for each group at different times
+# summary(surv_gg1, newdata = data.frame(treat = c("control", "6-MP")), type = "hazard")
+
+```
+This generalised gamma model output from `flexsurvreg` uses the so called
+**Prentice parameterisation** that relates it to the AFT model:
+
+- `mu` ($\mu$): This is the **location** parameter, that determines the 'center'
+of the survival time on a log scale for the reference (placebo group). The treatment
+covariate further shifts this ($\mu$).
+- `sigma` ($\sigma$): This is the **scale** parameter, that determines the spread 
+or the variance of the log-survival times. 
+- `Q`: This is the **shape** parameter, that controls the skewness and tail behavior.
+In a way, it thus handles the departure from log-normality.
+You can use it to evaluate whether a simpler two-parameter model might be justified:
+    - Q = 1: Weibull (hazard changes monotonically, only up or only down)
+    - Q = 0: Log-Normal (hazard rises to a peak and then declines)
+    - Q > 0: Standard gamma (hazard typically increases and then levels off)
+    - Q < 0: Inverse gamma
+
+The parameterisation used before in our gamma formulas is called
+**Stacy parameterisation** and you can transform the above output into Stacy
+parameters using the following formulas:
+
+```{r,warning=FALSE}
+
+# Transforming flexsurv 'gengamma' output into stacy parameters used in the formulas
+
+stacy_converter <- function(model) {
+  # 1. Extract Prentice parameters from the model
+  # We use the 'res' table which contains natural scale estimates
+  mu    <- surv_gg1$res["mu", "est"]
+  sigma <- surv_gg1$res["sigma", "est"]
+  Q     <- surv_gg1$res["Q", "est"]
+  
+  # 2. Apply the transformation math
+  k_stacy <- 1 / (Q^2)
+  p_stacy <- Q / sigma
+  lambda_stacy <- exp(mu-(log(k_stacy)/p_stacy))
+  
+  # 3. Format into a nice table
+  results <- data.frame(
+    Parameter = c("k (Shape)", "p (Power)", "lambda (Rate/Scale)"),
+    Stacy_Estimate = c(k_stacy, p_stacy, lambda_stacy),
+    stringsAsFactors = FALSE
+  )
+  
+  return(results)
+}
+
+# Usage:
+ stacy_params <- stacy_converter(surv_gg1)
+ print(stacy_params)
+
+```
+However, you can also obtain the Stacy parameters by fitting the generalised gamma 
+AFT model using 
+[flexsurvreg](https://www.rdocumentation.org/packages/flexsurv/versions/2.3.2/topics/flexsurvreg) 
+function from the
+[flexsurv](https://cran.r-project.org/web/packages/flexsurv/vignettes/flexsurv.pdf) 
+package, specifying `dist="gengamma.orig"`:
+
+```{r,warning=FALSE}
+
+# GENERALISED GAMMA AFT MODEL
+
+# Fitting gamma model using flexsurvreg
+surv_gg2 <- flexsurvreg(Surv(time, cens) ~ treat, data = leukdata, dist = "gengamma.orig")
+print(surv_gg2)
+
+```
+In the Stacy version:
+
+- `shape` ($\p$): A power parameter that affects the spread and skewness
+- `scale` ($\lambda$): Directly relates to the time scale
+- `k` ($\k$): Affects the tail behavior and overall family of the distribution
+- 
+
+Gamma or generalised gamma models cannot be fit using `survreg`.
+
+
+
+### Model validation
+
+To ensure the gamma distribution fits the data and the **accelerated failure time (AFT) assumption**. 
+is met, we carry out similar checks as before for other models:
+
+*1. Visual comparison with non-parametric estimates*
+
+We can plot the fitted parametric survival curve $\hat{S}(t)$ directly over the 
+Kaplan-Meier (KM) curve.
+
+For a quick visual check, we can use 
+[plot(x)](https://www.rdocumentation.org/packages/graphics/versions/3.6.2/topics/plot) 
+function. If `x` is a `flexsurvreg` object, R actually runs a function called 
+[plot.flexsurvreg()](https://www.rdocumentation.org/packages/flexsurv/versions/2.3.2/topics/plot.flexsurvreg).
+It plots survival from a parametric model against non-parametric estimates, when
+you specify `type = "survival"`:
+
+```{r,warning=FALSE}
+
+# Plot the gamma survival function against the Kaplan-Meier data
+plot(surv_g1, type = "survival", main = "Standard Gamma Survival Fit")
+
+# Plot both the gamma and generalised gamma survival functions to see which fits 
+# the data points better
+plot(surv_gg1, type = "survival", ci = FALSE, col = "blue", main = "Model Comparison")
+lines(surv_g1, type = "survival", ci = FALSE, col = "red")
+
+# Add a legend
+legend("topright", legend=c("Generalised Gamma", "Gamma"), 
+       col=c("blue", "red"), lwd=2)
+
+
+# Plot additionally Weibul (best AIC so far) to see which fits the data points better
+plot(surv_gg1, type = "survival", ci = FALSE, col = "blue", main = "Model Comparison")
+lines(surv_g1, type = "survival", ci = FALSE, col = "red")
+lines(surv_wei3, type = "survival", ci = FALSE, col = "green")
+
+# 4. Add a legend
+legend("topright", legend=c("Generalised Gamma", "Gamma", "Weibull"), 
+       col=c("blue", "red", "green"), lwd=2)
+
+```
+
+By plotting log-normal and log-logistic models in the same figure, we can see that they provide very similar fit:
+
+```{r,warning=FALSE}
+  
+# Plot both to see which fits the data points better
+plot(surv_ln1, type = "survival", ci = FALSE, col = "blue")
+lines(surv_llog1, type = "survival", ci = FALSE, col = "red")
+legend("topright", legend = c("Log-Normal", "Log-logistic"), col = c("blue", "red"), lty = 1)
+
+```
+
+Log-normal model appears to provide a reasonably good fit to the data.
+
+
+*2. Linear transformation (Graphical check)*
+
+If $T$ follows a log-normal distribution, then $log(T)$ must follow a normal 
+distribution. The Z score (normal quantile) is $Z = \frac{\log{(t)}-\mu} {\sigma}$, 
+which can be rearranged as $ Z = \frac{1}{\sigma} \log{(t)} - \frac{\mu} {\sigma}$.
+
+We can thus check whether plotting the **standard normal quantiles**, calculated 
+as $\Phi^{-1}[1-S(t)]$, against $log(t)$, gives a straight line, with intercept 
+$-\frac{\mu} {\sigma}$ and slope $\frac{1}{\sigma}$:
+
+
+```{r,warning=FALSE}
+
+library(tidyverse) # reloaded to be able to run this block independently
+library(survival) # reloaded to be able to run this block independently
+
+# Plotting observed quantiles against theoretical gamma quantiles 
+
+# 1. Fit your gamma model
+surv_g1 <- flexsurvreg(Surv(time, cens) ~ treat, data = leukdata, dist = "gamma")
+
+# 2. Extract the common shape parameter (k)
+k_hat <- surv_g1$res["shape", "est"]
+#rate_hat <- surv_g1$res["rate", "est"]
+#a_hat <- 1 / rate_hat
+
+# 3. Fit the Kaplan-Meier (observed) by treatment group
+km <- survfit(Surv(time, cens) ~ treat, data=leukdata)
+
+# 4. Create a data frame for filtering and label the groups
+# KM object often starts with a survival of 1
+# qgamma(1) is infinity
+# lm() below fails when it hits infinite values
+# to fix this, we need to create a temporary data from, filter out those infinite
+# points, and then plot the results
+df <- data.frame(
+  time_obs = km$time, theo_quantiles = qgamma(1 - km$surv, shape = k_hat, scale = 1),
+  # in survfit object, the information about the number of observations in each
+  # group is stored in a vector called km$strata
+  group = rep(names(km$strata), km$strata)
+)
+
+# 5. Remove the infinite values (where survival is 1)
+df_clean <- df[is.finite(df$theo_quantiles), ]
+
+# 6. Initialise the plot - created empty plot to add points in loop
+plot(df_clean$theo_quantiles, df_clean$time_obs, type = "n",
+xlim = c(0, max(df_clean$theo_quantiles)), 
+ylim = c(0, max(df_clean$time_obs)),
+xlab = "Theoretical Quantiles (Standard Gamma, Scale=1)",
+ylab = "Observed survival time",
+main = "Gamma Q-Q Plot",
+xaxs = "i", yaxs = "i")
+
+# 7. Extract slopes and add lines for each group
+group_names <- names(km$strata)
+cols <- c("blue", "red")
+
+for(i in 1:length(group_names)){
+  g <- group_names[i]
+  group_data <- subset(df_clean, group == g)
+  
+   # Plot points for this group
+  points(group_data$theo_quantiles, group_data$time_obs, col = cols[i], pch = 19)
+  
+  # Fit a regression line through origin (Time = scale * theoretical gamma quintile)
+  # The slope of this line is the group-specific scale (a)
+  # '-1' forces the intercept to be 0
+  fit_lm <- lm(time_obs ~ theo_quantiles - 1, data = group_data)
+  
+  # Add the line
+  abline(fit_lm, col = cols[i], lwd = 2)
+
+# 7. Slope is the estimated scale a 
+  scale_est <- coef(fit_lm)["theo_quantiles"]
+  print(paste("Group:", g, "| Estimated scale:", round(scale_est, 4)))
+}
+
+# 8. Add a legend
+legend("topleft", legend = group_names, col = cols, lty = 1, lwd = 2, pch = 19)
+
+```
+
+The plot of theoretical quantiles against observed survival times appear to produce 
+relatively straight lines in both groups. 
+
+
+*3. Graphical check for accelerated failure time assumption*
+
+We can also evaluate whether the accelerated failure time (AFT) assumption for the
+gamma and generalised gamma AFT models hold by checking whether there is a **constant horizontal shift** 
+between survival curves plotted against log of time:
+
+
+```{r,warning=FALSE}
+
+library(broom) # reloaded to be able to run this block independently
+library(tidyverse) # reloaded to be able to run this block independently
+library(flexsurv) # reloaded to be able to run this block independently
+
+# Plotting survival curves on log time scale to see the AFT model constant shift
+
+# 1. Fit the Kaplan-Meier (observed) by treatment group
+km <- survfit( Surv(time, cens) ~ treat, data=leukdata)
+#summary(km)
+#names(km)
+
+# 2. Create a data frame for ggplot
+plot_data <-broom::tidy(km)
+plot_data
+# survival probability is now named estimate
+#names(plot_data)
+
+# 3. Fit log-normal model (and other models for comparison)
+#surv_exp1 <- flexsurvreg(Surv(time, cens) ~ treat, data = leukdata, dist = "exp")
+#surv_wei3 <- flexsurvreg(Surv(time,cens) ~ treat, data = leukdata, dist = "weibull")
+#surv_llog1 <- flexsurvreg( Surv(time, cens) ~ treat, data = leukdata, dist = "llogis")
+#surv_ln1 <- flexsurvreg(Surv(time, cens) ~ treat, data = leukdata, dist = "lnorm")
+surv_g1 <- flexsurvreg(Surv(time, cens) ~ treat, data = leukdata, dist = "gamma")
+surv_gg1 <- flexsurvreg(Surv(time, cens) ~ treat, data = leukdata, dist = "gengamma")
+
+
+# 4. Generate predicted survival probabilities for a range of times
+# This creates a smooth curve for the log-time axis
+time_seq <- seq(0.1, 35, length.out = 100)
+#pred_exp <- summary(surv_exp1, t = time_seq, tidy = TRUE)
+#pred_wei <- summary(surv_wei3, t = time_seq, tidy = TRUE)
+#pred_llogis <- summary(surv_llog1, t = time_seq, tidy = TRUE)
+#pred_lnorm <- summary(surv_ln1, t = time_seq, tidy = TRUE)
+pred_g1 <- summary(surv_g1, t = time_seq, tidy = TRUE)
+pred_gg1 <- summary(surv_gg1, t = time_seq, tidy = TRUE)
+
+# 5. Plot everything with a Log-transformed X-axis
+
+# for log-normal model only
+ggplot() +
+  # Kaplan-Meier steps (the raw data)
+  geom_step(data = plot_data, aes(x = time, y = estimate, color = strata), linewidth = 0.8) +
+  # Gamma fitted curves
+  geom_line(data = pred_g1, aes(x = time, y = est, color = treat), linetype = "dashed", linewidth = 1) +
+  scale_x_log10() + 
+  labs(title = "KM vs. Gamma AFT fit on log time scale",
+       x = "Log(Time)", y = "Survival Probability") +
+  theme_bw()
+
+# also including exponential, Weibull, and log-logistic models
+ggplot() +
+  # Kaplan-Meier steps (the raw data)
+  geom_step(data = plot_data, aes(x = time, y = estimate, color = strata), linewidth = 0.8) +
+   # Exponential fitted curves
+  # geom_line(data = pred_exp, aes(x = time, y = est, color = treat), linetype = "dashed", linewidth = 1) +
+  # Weibull fitted curves
+  # geom_line(data = pred_wei, aes(x = time, y = est, color = treat), linetype = "dotted", linewidth = 1) +
+  # Log-logistic fitted curves
+  # geom_line(data = pred_llogis, aes(x = time, y = est, color = treat), linetype = "dotdash", linewidth = 1) +
+  # Log-normal fitted curves
+  # geom_line(data = pred_lnorm, aes(x = time, y = est, color = treat), linetype = "longdash", linewidth = 1) +
+  # Gamma fitted curves
+  geom_line(data = pred_g1, aes(x = time, y = est, color = treat), linetype = "dashed", linewidth = 1) +
+  # Generalised gamma fitted curves
+  geom_line(data = pred_gg1, aes(x = time, y = est, color = treat), linetype = "dotted", linewidth = 1) +
+  scale_x_log10() + 
+  labs(title = "KM vs. Parametric fits on log time scale",
+       subtitle = "Dashed = Gamma, Dotted = Generalised Gamma", #Dotdash = Log-logistic, Longdash = Log-normal",
+       x = "Log(Time)", y = "Survival Probability") +
+  theme_bw()
+
+
+```
+
+The shift between survival curves seems constant for both models.
+
+
+### Model selection
+
+In research you often don’t know which distribution fits your data best. Because 
+generalised gamma distribution contains all these other distributions as special 
+cases, you can:
+
+1. Fit a generalised gamma model
+2. Check the confidence intervals for $k$ and $p$
+3. If p ≈ 1: You can simplify your model to a gamma model
+4. If k ≈ 1: You can simplify your model to a Weibull model
+5. If k ≈ 1, p ≈ 1: You can simplify your model to an exponential model
+
+Because these other models are nested of with the generalised gamma model, we can 
+carry out a formal **Likelihood Ratio Test (LRT)** between two models to determine 
+which model provides a better fit  for the data.
+
+To test whether a generalised gamma $(\lambda, k, p$ distribution gives a significantly 
+better fit than a Weibull $(\lambda, p$) distribution, we test the following 
+null hypothesis:
+
+$$H_0: k = 1 \quad \text{(Weibull model)}$$
+$$H_1: k \neq 1 \quad \text{(Generalised gamma model)}$$
+Under the null hypothesis $H_0$, the likelihood ratio test statistic $W$ follows 
+a chi-squared distribution with 1 degree of freedom ($\chi^2_1$):
+
+$$W(\hat{\lambda}, \hat{p}, 1) = 2 \left[ \log L(\hat{\lambda}, \hat{p}, \hat{k}) - \log L(\hat{\lambda_0}, \hat{p_0}, 1) \right] \sim \chi_1^2,$$
+where $\hat{\lambda}$, $\hat{p}$, $\hat{k}$ are the maximum likelihood estimates (MLEs) 
+for a generalised gamma model with unconstrained $k$, and $\hat{\lambda}_0$, 
+$\hat{p}_0$  are the MLEs for a generalised gamma model with the constraint 
+$k = 1$ (i.e., MLE for the Weibull model).
+
+The Weibull and generalised gamma model outputs we ran before provide
+the necessary log-likelihood values for carrying out the LRT. We can thus carry 
+out the LRT for example in the following way:
+
+```{r,warning=FALSE}
+
+# Calculate manually
+
+# Using flexsurvreg outputs that provide the log-likehood values
+# The necessary values can be extracted in the following way:
+logL_wei <- surv_wei1$loglik
+logL_wei
+logL_gg1 <- surv_gg1$loglik
+logL_gg1
+
+# Calculate the test statistic
+LRT_statistic <- 2 * (logL_gg1 - logL_wei)
+LRT_statistic
+
+# Calculate the P-value
+# We use the Chi-squared distribution with 1 degree of freedom
+p_value <- pchisq(LRT_statistic, df = 1, lower.tail = FALSE)
+p_value
+
+```
+The non-significant p-value ($p = 0.54$) indicates that allowing the parameter 
+$k$ to vary (generalised gamma model) does not significantly improve the model's 
+log-likelihood compared to fixing it at 1 (Weibull model). We would thus fail to 
+reject the null hypothesis at 5% significance level, and conclude that Weibull 
+distribution is better than generalised gamma distribution in this case.
+
+We could also use the [lrtest()](https://www.rdocumentation.org/packages/lmtest/versions/0.9-40/topics/lrtest) 
+function from the [lmtest()](https://cran.r-project.org/web/packages/lmtest/lmtest.pdf) 
+package to compare two nested `flexsurvreg` objects:
+
+```{r,warning=FALSE}
+
+# Make sure you have installed the lmtest package
+# install.packages("lmtest")
+# Load the lmtest package
+library(lmtest)
+
+# Likelihood Ratio Test
+
+# It is recommended to list the most complex model first
+lrtest(surv_gg1, surv_wei1)
+
+lrtest(surv_gg1, surv_g1)
+
+```
+Also when comparing the fit of standard gamma model and generalised gamma model,
+we fail to reject the null hypothesis, and also conclude that standard gamma
+distribution is better than generalised gamma distribution in this case.
+
+
+We can use AIC to compare the goodness-of-fit of Weibull and standard gamma models,
+as well as other models we have fit:
+
+```{r,warning=FALSE}
+
+aic_table <- data.frame(
+  Model = c("Exponential", "Weibull", "Log-Logistic", "Log-Normal",
+            "Gamma", "Generalised Gamma"),
+  AIC = c(AIC(surv_exp1), AIC(surv_wei3), AIC(surv_llog1), AIC(surv_ln1),
+          AIC(surv_g1), AIC(surv_gg1))
+)
+# Sort by AIC (lowest is best)
+aic_table <- aic_table[order(aic_table$AIC), ]
+print(aic_table)
+
+bic_table <- data.frame(
+  Model = c("Exponential", "Weibull", "Log-Logistic", "Log-Normal",
+            "Gamma", "Generalised Gamma"),
+  BIC = c(BIC(surv_exp1), BIC(surv_wei3), BIC(surv_llog1), BIC(surv_ln1),
+          BIC(surv_g1), BIC(surv_gg1))
+)
+# Sort by BIC (lowest is best)
+bic_table <- bic_table[order(bic_table$BIC), ]
+print(bic_table)
+
+aic_table <- data.frame(
+  Model = c("Exponential", "Weibull", "Log-Logistic", "Log-Normal", "Non"),
+  AIC = c(AIC(surv_exp1), AIC(surv_wei3), AIC(surv_llog1), AIC(surv_ln1), AIC(surv_ln1_non_aft))
+)
+# Sort by AIC (lowest is best)
+aic_table <- aic_table[order(aic_table$AIC), ]
+print(aic_table)
+
+```
+
+Based on AIC, the standard gamma model actually comes on top before Weibull,
+although the differences in AICs are very small.
+
+We could also use BIC:
+
+$BIC = -2\log(L) + k \cdot \ln(n)$
+
+which uses a stricter penalty (whenever log(n) > 2, which happens once n > 7) and 
+is less likely to 'overfit' by adding unnecessary parameters. This would only 
+affect the ordering of models with different number of parameters (i.e., exponential
+and generalised gamm), not the models with the same number of parameters:
+
+```{r,warning=FALSE}
+
+bic_table <- data.frame(
+  Model = c("Exponential", "Weibull", "Log-Logistic", "Log-Normal",
+            "Gamma", "Generalised Gamma"),
+  BIC = c(BIC(surv_exp1), BIC(surv_wei3), BIC(surv_llog1), BIC(surv_ln1),
+          BIC(surv_g1), BIC(surv_gg1))
+)
+# Sort by BIC (lowest is best)
+bic_table <- bic_table[order(bic_table$BIC), ]
+print(bic_table)
+
+```
+

@@ -1,0 +1,52 @@
+---
+title: "Day 1"
+format: 
+  html:
+    embed-resources: true
+toc: true
+toc-depth: 3
+---
+
+## Today's topics
+
+Welcome to Day 1 of the Advanced Survival Concepts and Analysis short course for 2026.
+
+In today's topics we will learn about:
+
+\- [Cox model when PH assumption is violated](PH_assump.qmd)
+
+\- [Joint modelling with survival data](Joint_model.qmd)
+
+\- [Parametric survival modelling](Parametric.qmd)
+
+\- [Flexible parametric survival modelling (first lecture)](Flexible1.qmd)
+
+We will cover the theorectical concepts and practical applications. You will also have take-home exercises to practise the concepts on data in your own time and at your own pace.
+
+We have additional optional reading for [non-linear Cox models](nonlinear_Cox.qmd).
+
+## Assumed knowledge
+
+We assume a working basic knowledge of survival analysis in our short course.
+
+This includes a basic understanding of:
+
+-   What makes survival data different from standard binary outcomes
+
+-   Censoring in survival analysis
+
+-   Kaplan-Meier survival estimator
+
+-   Cox proportional hazards modelling
+
+## By the end of today
+
+We would expect you to have a working understanding of:
+
+-   Recognising when proportional hazards (PH) assumption is violated and different strategies to handle non-PH.
+
+-   When joint modelling would be appropriate and the two components of joint modelling
+
+-   Concepts of parametric survival modelling and selection of appropriate survival distribution
+
+-   How flexible parametric survival models differ and how to appropriately fit these models

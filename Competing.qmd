@@ -1,0 +1,841 @@
+---
+title: "1 Competing risks"
+format: 
+  html:
+    embed-resources: true
+    code-overflow: wrap
+toc: true
+toc-depth: 3
+---
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+## What is a competing risk?
+
+A **competing risk** is an event that "competes" with your primary event of interest. Its occurrence **precludes the event of interest from ever happening**.
+
+For example, consider a group of people are followed to see if they develop a cancer. By the end of the study, some may have been observed to develop a cancer and some are alive and well. In real life, however, these are not the only two options. Some patients may die before experiencing a cancer. This is a competing risks situation because death prohibits the occurrence of cancer.
+
+## Traditional survival analysis versus competing risk survival analysis
+
+#### 1. Traditional survival analysis
+
+In traditional survival analysis (e.g., time to death), censoring occurs when the event of interest has **not yet occurred** by the end of the study or when the study participant is lost to follow-up.
+
+**Premise:** The event *could* still happen if follow-up continued. The observation is **incomplete**, but the participant is still hypothetically “at risk”.
+
+**Assumption:** We assume **non-informative censoring**. This means the reason for censoring is unrelated to the probability of the event happening. A censored participant is assumed to have the same future risk of experiencing the event as those still being observed.
+
+#### 2. Competing risk survival analysis
+
+In competing risk survival analysis, occurrence of a competing event **precludes** the event of interest from ever happening.
+
+**Premise:** The observation is **complete** regarding the event of interest. Because the competing event (e.g., death) happened, the primary event (e.g., cancer) is now biologically or logically impossible. The participant is removed from the “at risk” pool for the event of interest.
+
+**Statistical challenge:** The occurrence of a competing event is inherently **informative** regarding the event of interest. Because the probability of the event of interest has dropped to zero, treating these people as “censored” may bias our real-world estimates of the probability of the event occurring in a population where people can experience competing events.
+
+## Generalising competing risks
+
+#### The $K$ event framework
+
+An individual may experience $k = 1,...,K$ different event types (i.e., causes of deaths). We typically focus on **one event of interest**, while the remaining $K-1$ events are treated as **competing risks**.
+
+As in traditional survival analysis, the individuals may be censored before having experienced an event, i.e., due to loss to follow-up or end of follow-up.
+
+Competing events provide **partial information** about the event of interest: they tell us that the event of interest had not occurred up until that moment, and exactly when it became impossible.
+
+#### The first event framework
+
+The $K$ different event types may be **terminal** (e.g., death), precluding the event of interest, or **non-terminal**, changing the state of the individual but not precluding the event of interest.
+
+However, if we are interested **only in the first event**, then all other event types – terminal or non-terminal – function as **competing risks**; we only observe the **time to the first event** and **type** of this event.
+
+If we continue follow-up after a non-terminal event, we move into **semi-competing risks**; they do not drop the probability of the primary event to zero but they alter the **risk profile**.
+
+This is the foundation of **multi-state modelling**, which we will explore in a future lecture.
+
+$\rightarrow$ **In this lecture**: We focus on traditional competing risk analysis, which **stops at the first event** among $K$ **mutually exclusive** possibilities.
+
+## Analysis in the presence of competing risks
+
+There are **three main types of analyses** that can be performed in the presence of competing risks:
+
+#### 1. Combined analysis or time to the first event analysis
+
+In combined analysis, the $K$ different event types are merged into one *combined event*. Some examples include **overall survival** (all causes of death are combined into one outcome) or **progression-free survival** (common in cancer studies). In such analysis the goal is typically to delay all event types.
+
+However, there are many limitations to combined analysis:
+
+-   Results can be difficult to interpret if one event type is much rarer than the other
+-   May be inappropriate if the severity of event types differs significantly
+-   Confusing when clinical goals conflict - for example, wanting to delay/prevent one event (e.g., in-hospital infection) while wanting to shorten the other (e.g., time to hospital discharge)
+
+Combined analysis is technically straightforward as standard survival analysis techniques apply (e.g., Kaplan-Meier, Cox PH). However, this approach is usually not considered sufficient as a standalone analysis for competing risks data.
+
+#### 2. Marginal analysis or cause-specific hazard approach
+
+In marginal analysis, the focus is on one event of interest (e.g., in-hospital infection) and objective is to quantify a *marginal* or *net* probability of such an event, in an *ideal* or *hypothetical* world where competing events are absent. For example, one might want to investigate what factors impact the risk of in-hospital infection if patients were to stay in hospital indefinitely.
+
+This approach is thus useful for **etiological research** to understand **biological mechanisms** or **direct preventative factors** (e.g., hand hygiene, antiseptic use) rather than indirect factors (e.g., shortening hospital stay).
+
+The marginal analysis relies on strong – and often unrealistic – assumption of **independence** between event types. However, it remains valid for estimating the hazard of an event among those who are currently *alive and event-free*. Standard regression techniques (e.g., Cox PH) can be used to estimate the **cause-specific hazard ratio**, with competing events treated as **censored** at their time of occurrence. However, standard non-parametric estimators (e.g., Kaplan-Meier) are inappropriate for estimating the probability of an event as they overestimate it by ignoring the competing events.
+
+#### 3. Competing risk analysis
+
+In competing risk analysis, the focus is still on one event of interest (e.g., in-hospital infection) but objective is to quantify the **‘real-world’ probability** of such an event, while accounting for other competing events that may occur first. For example, one might be interested in the probability of a patient developing an in-hospital infection, while acknowledging that they may be discharged or die first.
+
+This approach is useful for **clinical decision-making** and **resource planning** or evaluating the **real-world impact** of factors that may influence multiple, competing outcomes simultaneously.
+
+It requires specific competing risk analysis methods such as **cause-specific cumulative incidence function** (or **sub-distribution function**) and **hazard of the sub-distribution**, where individuals who experience a competing event are **not** treated as censored but **remain in the risk set**.
+
+## Competing risks notation
+
+In the absence of competing risks, survival data are usually presented as a bivariate random variable or pair $(T,C)$:
+
+-   The censoring variable $C$ is 1 if the event of interest is observed, and 0 if the observation is censored
+-   When $C=1$, $T$ is the time at which the event of interest occurred and when $C=0$, $T$ is the time at which the observation was censored
+
+This definition can be extended to the competing risk situation where $K$ types of mutually exclusive events are possible:
+
+-   The censoring indicator $C$ is again defined as 0 if the observation is censored, but if the observation is not censored, $C$ will take on the value $k$, where $k$ is the type of the first event observed $(k=1,2,...,K)$
+-   If $C=k$, $T$ is the time at which the event of type $k$ occurred; otherwise it is the time of censoring
+
+## Measures of risk: cumulative incidence and hazards
+
+#### Kaplan-Meier estimator and competing risks
+
+In traditional survival analysis, when there is only one type of event or a *combined event*, we are primarily interested in the probability of "surviving" past a certain time without the event of interest occurring.
+
+For such single-event survival data, the **Kaplan-Meier estimator** is the standard for describing time-to-event outcomes. The Kaplan–Meier estimator at time $t_j$ is defined as:
+
+$$
+  \hat{S}(t_j) = \prod_{t_j \le t} \left( 1 - \frac{d_j}{n_j} \right),
+$$
+
+where $d_j$ is the number of events occurring at time $t_j$ and $n_j$ is the number of individuals at risk just before time $t_j$
+
+In the presence of competing risks, treating them as regular censoring incorrectly assumes that individuals who experience a competing event remain ‘at risk’ for the event of interest at the same rate as the rest of the cohort, leading to an overestimation of the event probability. If we were to calculate cause-specific KM estimates, their sum would add up to more than 1 (100%).
+
+#### Cumulative incidence function (CIF)
+
+In the presence of competing risks, our perspective shifts from the absence of events to the **occurrence of specific events**. Therefore, while the survival function $S(t) = P(T > t)$ is often preferred in traditional survival analysis, in competing risks setting, the distribution function $F(t) = P(T \le t$) becomes the preferred measured.
+
+In competing risks setting, the term **cumulative incidence function (CIF)**, rather than cumulative distribution function (CDF), is used to emphasise that we are measuring the probability of a specific event occurring by time $t$, acknowledging that other event types may happen first. Thus, we "partition" the total probability of any event happening into the individual probabilities of each specific type of event. Because we are specifically looking at the occurrence of event $k$, the term **incidence** more accurately reflects the "new cases" of that specific cause within the population. The concept of cause-specific cumulative incidence function has therefore been introduced.
+
+The **cause-specific cumulative incidence function (CIF)** for an event of type $k$ $(k=1,2,...,K)$ is defined as a joint probability
+
+$$F_k(t)=P(T \le t, C=k)$$
+
+The cause-specific CIF for an event of type $k$ can take values only up to $P(C=k)$ (not $[0,1]$) because $\lim_{t \to \infty} F_k(t) = P(C=k)$. Therefore, $F_k(t)$ is not a proper distribution function, and is hence referred to as a **sub-distribution function**.
+
+The overall cumulative incidence function is the probability that an event of any type occurs at or before time $t$ and is equal to the sum of CIFs for all event types:
+
+$$
+F(t) = P(T \le t) = \sum_{k=1}^K P(T \le t, C=k) = \sum_{k=1}^K F_k(t) = 1−S(t)
+$$ In the absence of censoring, an empirical estimate of the cause-specific CIF for the event of type $k$ can be obtained as
+
+$$
+  \hat{F}_k(t)= \frac{\text{Number of observations with 𝑇≤𝑡 and 𝐶=k}}{\text{Total number of observations 𝑛}}
+$$
+
+If any of the $n$ observations remain free of the $k$ event types at the end of the follow-up, right-censoring is present and must be accounted for in the CIF calculation
+
+$$
+\hat{F}_k(t) = \sum_{t_j \le t} \hat{\lambda}_{kj} \hat{S}(t_{j-1}) = \sum_{t_j \le t} \frac{d_{jk}}{n_j} \hat{S}(t_{j-1})
+$$
+
+where $\lambda_{kj}$ is the cause-specific hazard for event $k$ at time $t_j$, $d_{kj}$ is the number of events of type $k$ at time $t_j$, $n_j$ is the number at risk just before time $t_j$ and $\hat{S}(t_{j-1})$ is the overall survival probability (surviving all risks) until just before $t_j$.
+
+#### Hazard of the sub-distribution
+
+From the cause-specific cumulative incidence function, one can define a hazard function which has a **one-to-one relationship** with this cumulative incidence function and is often referred to as the **sub-distribution hazard**
+
+$$
+h_k(t) = \frac{−d \text{log}(1−F_k(t))}{dt} = \frac{f_k(t)}{1−F_k(t)},
+$$
+
+where $f_k(t)$ is called sub-density.
+
+This hazard takes the form
+
+$$
+h_k(t) = \lim_{\Delta t \to \infty} \frac{P(t \le 𝑇<t+\Delta t, C=k |T_k \ge t)}{\Delta t} = \frac{P(t \le T < t+\Delta t,C=k|T \ge t ∪ (T \le t ∩ C \ne k))}{\Delta t}
+$$ Thus, it is based on the fraction of individuals that develops the event of interest at some point, amongst the individuals that *either are still at risk for this event of interest* or *have already experienced* a competing event. **Individuals that experienced a competing event thus remain in the risk set.**
+
+#### Cause-specific hazard
+
+The **cause-specific hazard** is more intuitive
+
+$$
+\lambda_k(t) = \lim_{\Delta t \to \infty} \frac{P(t \le T < t+\Delta t, C=k|𝑇\ge t)}{\Delta t}
+$$ as it quantifies the progression to the event of interest amongst the individuals who are still at risk and did not experience any event of any type before. **Individuals that experienced a competing event are censored and removed from the risk set.**
+
+The sum of cause-specific hazards for all event types gives the overall hazard:
+
+$$\sum_{k=1}^K \lambda_k(t) = h(t),$$
+
+whereas the sub-distribution hazard ‘sacrifices’ additivity in exchange for direct one-to-one relationship with real-world probability of an event.
+
+The cause-specific cumulative incidence and the cause-specific hazard are related as follows:
+
+$$
+F_k(t)=P(T \le t, C=k)= \int_0^t S(u) \lambda_k(u) du 
+$$ $F_k(t)$ thus depends on $\lambda_k(t)$ but also on the cause-specific hazards of all other event types (via $S(t)$), and there is **no one-to-one relationship** between $\lambda_k(t)$ and $F_k(t)$, as there is between $h_k(t)$ and $F_k(t)$.
+
+## Goals of competing risk analysis
+
+The common goals of competing risk analysis and approaches to addressing them are:
+
+**1. Estimation: Quantifying real-world risk**
+
+-   **Goal:** To estimate the probability of a specific event in the presence of other competing events
+-   **Approach:** Cause-specific cumulative incidence function
+
+**2. Hypothesis testing: Comparing groups**
+
+-   **Goal:** To determine if the occurrence of events differs significantly between groups (e.g., treatment vs. control) in the presence of competing risks
+-   **Approach:** Statistical comparison of CIF curves or underlying hazards (cause-specific or sub-distribution)
+
+**3. Modelling: Identifying risk factors**
+
+-   **Goal:** To investigate the impact of multiple covariates simultaneously on the event of interest
+-   **Approach:** Utilising specific models – such as Fine-Gray sub-distribution model or cause-specific hazards model – depending on the research question of interest
+
+In the following, we will demonstrate these goals and approaches using a hands on R example.
+
+## Data example
+
+#### Data
+
+In this data example, we will use data on ovarian cancer patients in the [dataOvarian](https://www.rdocumentation.org/packages/frailtypack/versions/3.8.0/topics/dataOvarian) dataset from the [frailtypack](https://cran.r-project.org/web/packages/frailtypack/frailtypack.pdf) package.
+
+This dataset is derived from the **Ovarian Cancer Meta-analysis Project**. It compiles data on 1192 advanced ovarian cancer patients who participated in one of four double-blind RCTs to assess the efficacy of **cyclophosphamide plus cisplatin (CP)** versus **cyclophosphamide plus adriamycin plus cisplatin (CAP)**. Patients were diagnosed with advanced ovarian cancer and then randomised into one of the two treatment groups. They were followed from the point of randomisation to monitor for **cancer progression** (disease growth or advancement) or **recurrence/relapse** (return of cancer aftera period of improvement or remission). These events are combined into a single surrogate outcome referred to hereafter as **progression**.
+
+Let's load and view these data to get a better understanding of the data and the variables in this dataset:
+
+```{r,warning=FALSE}
+
+# make sure you have installed the frailtypack package
+# install.packages("frailtypack")
+# load the frailtypack package
+library(frailtypack)
+
+# load the dataset dataOvarian from the frailtypack package
+data(dataOvarian)
+# view the first observations
+head(dataOvarian)
+
+```
+
+When you load the dataset in R, you will see the following variables in the data:
+
+-   `patientID`: Unique identifier for each patient
+
+-   `trialID`: An identifier for trial centers where patients were treated (there are 50).
+
+-   `trt`: The indicator for the two treatment arms (0 = CP, 1 = CAP).
+
+-   `timeS`: The time (in years) to the **progression-free survival**, i.e., until disease progression or death
+
+-   `statusS`: The censoring indicator for progression-free survival (0 = censoring, 1 = progression or death)
+
+-   `timeT`: The time (in years) to death of any cause
+
+-   `statusT`: The censoring indicator for death (0 = censoring, 1 = death)
+
+The main outcomes of interest in these trials were **progression-free survival** and **overall survival**. Note that both of these outcomes are essentially **combined events**, which align with the first analysis approach we discussed for competing risks survival data. Because these approaches simplify the multi-event reality into a single "first event" framework, the standard survival analysis techniques - such as Kaplan-Meier estimation and Cox proportional hazards modelling - remain applicable.
+
+::: callout-tip
+### Student exercise
+
+Practise the previously covered survival analysis techniques to evaluate **progression-free survival** and **overall survival** using the [dataOvarian](https://www.rdocumentation.org/packages/frailtypack/versions/3.8.0/topics/dataOvarian) dataset. Specifically:
+
+-   **Kaplan-Meier estimation:** Estimate and visualise the survivor functions for the entire cohort and stratified by treatment group. Assess median survival time.
+-   **Log-rank test:** Test the null hypotheses of no difference in survival experience between the two treatment groups.
+-   **Cox proportional hazards model:** Fit a semi-parametric model with treatment group as a covariate to estimate the hazard ratio (HR) and compare the p-value to your log-rank test results. Assess the model assumptions.
+-   **Parametric models:** Fit various parametric models (e.g., Exponential, Weibull, Log-logistic) with treatment group as a covariate to estimate HR. Assess whether the chosen parametric distributions adequately fulfill their respective assumptions. Compare models that meet their assumptions (e.g., using AIC/BIC) to identify the most appropriate fit for the data.
+:::
+
+In this data example, our primary event of interest is **time to progression**. **Death** from any cause is a **competing risk**. **Censoring** occurred when patients did not experience disease progression or death, but were alive and free of disease progression at the end of the follow-up.
+
+We will use the follow-up time and indicator variables available in the data - `timeS` and `statusS` for progression-free survival (0=censoring, **1 = progression or death**) and `timeT` and `statusT` for overall survival (0=censoring, **1=death**) to define new follow-up time and indicator variables for **progression as the first event** ($k=1$) or **death as the first event** ($k=2$). We will also transform the follow-up time to months instead of years for easier interpretation.
+
+```{r,warning=FALSE}
+
+# make sure you have installed the tidyverse package
+# install.packages("tidyverse")
+# load the tidyverse package
+library(tidyverse) # we are using tidyverse tools such as the pipe (%>%) and dplyr
+
+# Progression-free and overall survival times were transformed to months 
+# for easier interpretation
+dataOvarian2 <- dataOvarian %>%
+  mutate(timeMonthsS = timeS * 12) %>%
+  mutate(timeMonthsT = timeT * 12)
+
+# defining new follow-up time and indicator variables for progression or death
+# as the first event
+dataOvarian2 <- dataOvarian2 %>%
+  mutate(timeMonthsCR = pmin(timeMonthsS, timeMonthsT)) %>%
+  mutate(statusCR = case_when(
+    statusS == 0 ~ 0, # censored observations
+    statusS == 1 & timeS == timeT ~ 2, # cases with death as the first event
+    TRUE ~ 1 # cases with disease progression as the first event
+  )) 
+
+```
+
+Let's have a look at the original indicator variables and the new indicator variable `statusCR` for competing risks. We will first look at all patients together (i.e., not taking the treatment group into account yet).
+
+```{r,warning=FALSE}
+
+# make sure you have installed the janitor package
+# install.packages("janitor")
+# load the janitor package
+library(janitor) # for tabyl() function
+
+# you can use table() function from baseR but tabyl() function gives percentages
+# table(dataOvarian2$statusS)
+# table(dataOvarian2$statusT)
+# table(dataOvarian2$statusCR)
+
+dataOvarian2 %>% tabyl(statusS) 
+dataOvarian2 %>% tabyl(statusT) 
+dataOvarian2 %>% tabyl(statusCR)
+
+```
+
+We can see that 777 patients had time to progression as the first event, 200 death, and 215 were censored.
+
+#### Cause-specific cumulative incidence functions (CIFs)
+
+To estimate the probability of progression over time, while acknowledging that the patients may die before disease progression, we can calculate non-parametric cause-specific cumulative incidence functions (CIFs).
+
+Cumulative incidences can be obtained using [cuminc()](https://www.rdocumentation.org/packages/cmprsk/versions/2.2-12/topics/cuminc) function from [cmprsk](https://cran.r-project.org/web/packages/cmprsk/cmprsk.pdf) package, [cuminc()](https://www.rdocumentation.org/packages/tidycmprsk/versions/1.1.1/topics/cuminc) function from [tidycmprsk](https://cran.r-project.org/web/packages/tidycmprsk/tidycmprsk.pdf) package, or [Cuminc()](https://www.rdocumentation.org/packages/mstate/versions/0.3.3/topics/Cuminc) function from [mstate](https://cran.r-project.org/web/packages/mstate/mstate.pdf) package
+
+Cumulative incidences obtained from the [cuminc()](https://www.rdocumentation.org/packages/cmprsk/versions/2.2-12/topics/cuminc) function from the [cmprsk](https://cran.r-project.org/web/packages/cmprsk/cmprsk.pdf) package or from the [Cuminc()](https://www.rdocumentation.org/packages/mstate/versions/0.3.3/topics/Cuminc) function from the [mstate](https://cran.r-project.org/web/packages/mstate/mstate.pdf) package can be visualised using [plot(x)](https://www.rdocumentation.org/packages/graphics/versions/3.6.2/topics/plot). If `x` is a `cuminc` object from the [cmprsk](https://cran.r-project.org/web/packages/cmprsk/cmprsk.pdf) package, R actually runs a function called [plot.cuminc()](https://www.rdocumentation.org/packages/cmprsk/versions/2.2-12/topics/plot.cuminc), and if `x` is a `Cuminc` object, R runs a function called [plot.Cuminc()](https://www.rdocumentation.org/packages/mstate/versions/0.3.3/topics/plot.Cuminc). Cumulative incidences form the [cuminc()](https://www.rdocumentation.org/packages/tidycmprsk/versions/1.1.1/topics/cuminc) function from the [tidycmprsk](https://cran.r-project.org/web/packages/tidycmprsk/tidycmprsk.pdf) package can be visualised using the [ggcuminc()](https://www.danieldsjoberg.com/ggsurvfit/reference/ggcuminc.html) function.
+
+```{r,warning=FALSE}
+
+# make sure you have installed the cmprsk package
+# install.packages("cmprsk")
+# load the cmprsk package
+# note: this package loads the survival package automatically
+library(cmprsk) # for cuminc() function
+
+# cuminc() function in cmprsk package does not use R formula syntax, but
+# requires the follow-up time and indicator data to be passed as separate vectors 
+ci0 <- cmprsk::cuminc(dataOvarian2$timeMonthsCR, dataOvarian2$statusCR)
+ci0
+
+# prints a simple CIF plot with cause-specific CIF curves
+plot(ci0)
+
+```
+
+```{r,warning=FALSE}
+
+# make sure you have installed the tidycmprsk and ggsurvfit packages
+# install.packages("tidycmprsk")
+# install.packages("ggsurvfit")
+# load the tidycmprsk and ggsurvit packages
+# note: tidycmprsk package loads the survival package automatically
+# note: loading tidycmprsk automatically loads ggcuminc() and tidycmprsk also 
+# imports ggplot2 to make ggcuminc() work (although some functionality is missing)
+# note: tidyverse package also automatically loads ggplot2() 
+# note: sometimes tidycmprsk fails to load ggsurvfit package needed for ggcuminc()
+# function, and therefore we load it here separately
+library(tidycmprsk) # for cuminc() function
+library(tidyverse) # reloaded to be able to run this code block independently
+library(ggsurvfit) # needed for ggcuminc() function
+
+# tidycmprsk was created specifically to make the cmprsk package more user-friendly
+# cuminc() function in tidycmprsk package uses R formula syntax 
+# status variable must be a factor
+ci1 <- tidycmprsk::cuminc( Surv(timeMonthsCR, factor(statusCR)) ~ 1, data = dataOvarian2)
+ci1
+
+# Plotting the CIF
+
+# CIF plot for time to progression
+# ci1 %>% ggcuminc(outcome = "1")
+# CIF plot for death
+# ci1 %>% ggcuminc(outcome = "2")
+# CIF plot for time to progression and death
+# ci1 %>% ggcuminc(outcome = c("1", "2"))
+
+# A bit nicer plots:
+
+ci1 %>%
+  ggcuminc(outcome = "1") + 
+  add_confidence_interval() +
+  add_risktable() +
+  labs(x = "Months")
+
+ci1 %>%
+  ggcuminc(outcome = "2") + 
+  add_confidence_interval() +
+  add_risktable() +
+  labs(x = "Months")
+
+ci1 %>%
+  # Pass both outcomes as a vector
+  ggcuminc(outcome = c("1", "2")) + 
+  add_confidence_interval() +
+  # could also add n at risk and events at different timepoints
+  # add_risktable() +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.2)) + 
+  labs(
+    x = "Months",
+    title = "Cumulative Incidence: Progression vs. Death"
+  )
+
+```
+
+```{r,warning=FALSE}
+
+# make sure you have installed the mstate package
+# install.packages("mstate")
+# load the mstate package
+# note: this package loads the survival package automatically
+library(mstate) # for Cuminc() function
+library(tidyverse) # reloaded to be able to run this code block independently
+
+# Cuminc() function in mstate package does not use R formula syntax, but
+# requires the follow-up time and indicator data to be passed as separate vectors
+ci2 <- Cuminc(time=dataOvarian2$timeMonthsCR, status=dataOvarian2$statusCR)
+# The ci2 object stores estimates for each event time, including
+# Overall survival: the probability of remaining free of any event
+# CIF (progression): cumulative incidence function of progression as the first event 
+# CIF (death): cumulative incidence of death as the first event (
+# Precision: standard errors for each of these point estimates
+head(ci2)
+# obtaining the estimated values at specific timepoints
+summary(ci2, time=c(5,10,15,20))
+
+# prints a simple CIF plot with cause-specific CIF curves with their CIs
+plot(ci2)
+
+```
+
+To demonstrate the overestimation of the event probability by Kaplan-Meier estimation, we calculate the naive Kaplan-Meier estimates which treat deaths as censored:
+
+```{r,warning=FALSE}
+
+library(tidyverse) # reloaded to be able to run this code block independently
+library(survival) # loaded to be able to run this code block independently
+library(gtsummary) # tbl_survfit() function
+
+# KM - NAIVE ESTIMATES
+
+# creating binary indicator variables for progression and death as first events
+dataOvarian2 <- dataOvarian2 %>%
+  mutate(
+    statusP = as.numeric(statusCR==1),
+    statusD = as.numeric(statusCR==2)
+  )
+
+# Kaplan-Meier estimates for progression, treating competing deaths as censored
+km_P <- survfit( Surv(timeMonthsCR, statusP) ~ 1, data = dataOvarian2)
+#summary(km_P)
+# Kaplan-Meier estimates for death, treating disease progression as censored
+km_D <- survfit( Surv(timeMonthsCR, statusD) ~ 1, data = dataOvarian2)
+#summary(km_D)
+
+# Kaplan-Meier estimates for progression-free survival can be obtained using 
+# the variables timeS and statusS available from the original data
+# These estimates are the same as the overall survival estimates from the 
+# Cuminc function from the mstate package above
+km_PD <- survfit( Surv(timeMonthsS, statusS) ~ 1, data = dataOvarian2)
+#summary(km_PD)
+
+# 1-KM estimates to compare to ci estimates
+km_P %>%
+  tbl_survfit(
+    times = c(5, 10, 15, 20),
+    type = "risk", # 1 - KM
+    label_header = "**{time} Months**",
+    estimate_fun = function(x) style_number(x, digits = 3)
+  )
+
+km_D %>%
+  tbl_survfit(
+    times = c(5, 10, 15, 20),
+    type = "risk", # 1 - KM
+    label_header = "**{time} Months**",
+    estimate_fun = function(x) style_number(x, digits = 3)
+  )
+
+km_PD %>%
+  tbl_survfit(
+    times = c(5, 10, 15, 20),
+    type = "risk", # 1 - KM
+    label_header = "**{time} Months**",
+    estimate_fun = function(x) style_number(x, digits = 3)
+  )
+
+```
+
+The results from the above analyses are summarised in the table below for comparison of cumulative incidences with the naïve KM estimates:
+
+| Time (months) | Any Event $1-S(t)$ | KM Progression $\hat{F}_1^{n}$ | KM Death $\hat{F}_2^{n}$ | CIF Progression $\hat{F}_1(t)$ | CIF Death $\hat{F}_2(t)$ |
+|:----------:|:----------:|:----------:|:----------:|:----------:|:----------:|
+| 5 | 0.675 | 0.612 | 0.161 | 0.561 | 0.114 |
+| 10 | 0.791 | 0.725 | 0.239 | 0.652 | 0.139 |
+| 15 | 0.826 | 0.744 | 0.320 | 0.665 | 0.161 |
+| 20 | 0.851 | 0.756 | 0.391 | 0.673 | 0.179 |
+
+The cumulative incidences can be interpreted as probabilities to experience an event (disease progression) by time $t$ while accounting for the presence of competing death. For example, we see that the probability to have a progression within 10 months (acknowledging that the patient may die before and thus not experience a progression) is estimated to be 65.2% for these patients. The naive\
+KM estimate overestimates this probability to be 72.5%.
+
+Note: $\hat{F}_1(t) + \hat{F}_2(t) = 1-S(t)$, whereas $\hat{F}_1^n + \hat{F}_2^n > 1−S(t)$ and sums \> 1 after 15 months of follow-up.
+
+We can also visualise the overestimation bias when using naive KM estimates instead of cumulative incidences:
+
+```{r,warning=FALSE}
+
+# make sure you have installed the broom package
+# install.packages("broom")
+library(tidyverse) # reloaded to be able to run this code block independently
+library(broom) # for tidy() function
+
+# Plotting the cumulative incidence functions and the naive 1-KM estimates
+
+# 1. Get the CIF for Progression (Failure Type 1)
+cif_p <- tidy(ci1) %>%
+  filter(outcome == "1") %>%
+  select(time, estimate) %>%
+  mutate(type = "CIF (Correct)")
+
+# 2. Get the 1-KM for Progression
+km_p <- tidy(km_P) %>%
+  mutate(estimate = 1 - estimate) %>% # Convert S(t) to 1-S(t)
+  select(time, estimate) %>%
+  mutate(type = "1-KM (Naive)")
+
+# 3. Combine them for plotting
+comp_data <- bind_rows(cif_p, km_p)
+
+# Create a 'starting row' to ensure both methods begin at time 0
+start_row <- data.frame(
+  time = 0, 
+  estimate = 0, 
+  type = c("CIF (Correct)", "1-KM (Naive)")
+)
+
+comp_data_fixed <- bind_rows(start_row, comp_data) %>%
+  distinct(time, type, .keep_all = TRUE) # Remove duplicates if 0 already existed
+
+ggplot(comp_data_fixed, aes(x = time)) +
+  
+  # Layer 1: CIF Area (Uses 'estimate')
+  geom_area(data = filter(comp_data_fixed, type == "CIF (Correct)"), 
+            aes(y = estimate, fill = "CIF (Progression)"), alpha = 0.5) +
+  
+  # Layer 2: Overestimation bias
+  geom_ribbon(data = pivot_wider(comp_data_fixed, names_from = type, values_from = estimate) %>% 
+                fill(`CIF (Correct)`, `1-KM (Naive)`, .direction = "down"),
+              aes(ymin = `CIF (Correct)`, ymax = `1-KM (Naive)`, fill = "Overestimation Bias"), 
+              alpha = 0.3) +
+  
+  # Layer 3: The 1-KM Line (Uses 'estimate')
+  geom_step(data = filter(comp_data_fixed, type == "1-KM (Naive)"), 
+            aes(y = estimate, color = "1-KM Estimate"), linewidth = 1) +
+  
+  # Formatting
+  scale_fill_manual(values = c("CIF (Progression)" = "steelblue", 
+                               "Overestimation Bias" = "firebrick")) +
+  scale_color_manual(values = c("1-KM Estimate" = "black")) +
+  theme_minimal() +
+  labs(
+    title = "Overestimation Bias: 1-KM vs. CIF (Progression)",
+    subtitle = "Highlighting the impact of ignoring competing deaths",
+    x = "Months",
+    y = "Cumulative Probability",
+    fill = "Legend",
+    color = ""
+  )
+
+```
+
+#### Comparing event occurrence
+
+Let's now consider the effect of the treatment group (CP versus CAP) on the two event types.
+
+```{r,warning=FALSE}
+
+library(tidyverse) # reloaded to be able to run this code block independently
+library(janitor) # reloaded to be able to run this code block independently
+
+dataOvarian2 <- dataOvarian2 %>%
+  mutate(trt = factor(trt, 
+                            levels = c(0, 1), 
+                            labels = c("CP", "CAP")))
+
+dataOvarian2 %>% tabyl(statusS, trt) 
+dataOvarian2 %>% tabyl(statusT, trt) 
+dataOvarian2 %>% tabyl(statusCR, trt)
+
+# nicer tables with percentages
+
+# percentages by row
+
+my_table1 <- dataOvarian2 %>%
+  tabyl(statusS, trt) %>%
+  adorn_totals(c("row", "col")) %>%          # Adds 'Total' rows and columns
+  adorn_percentages("row") %>%               # Calculates percentages by row
+  adorn_pct_formatting(digits = 1) %>%       # Formats as % with 1 decimal place
+  adorn_ns()                                 # Shows the raw counts (n) in parentheses
+
+print(my_table1)
+
+my_table2 <- dataOvarian2 %>%
+  tabyl(statusT, trt) %>%
+  adorn_totals(c("row", "col")) %>%          # Adds 'Total' rows and columns
+  adorn_percentages("row") %>%               # Calculates percentages by row
+  adorn_pct_formatting(digits = 1) %>%       # Formats as % with 1 decimal place
+  adorn_ns()                                 # Shows the raw counts (n) in parentheses
+
+print(my_table2)
+
+my_table3 <- dataOvarian2 %>%
+  tabyl(statusCR, trt) %>%
+  adorn_totals(c("row", "col")) %>%          # Adds 'Total' rows and columns
+  adorn_percentages("row") %>%               # Calculates percentages by row
+  adorn_pct_formatting(digits = 1) %>%       # Formats as % with 1 decimal place
+  adorn_ns()                                 # Shows the raw counts (n) in parentheses
+
+print(my_table3)
+
+
+my_table1b <- dataOvarian2 %>%
+  tabyl(statusS, trt) %>%
+  adorn_totals(c("row", "col")) %>%          # Adds 'Total' rows and columns
+  adorn_percentages("col") %>%               # Calculates percentages by row
+  adorn_pct_formatting(digits = 1) %>%       # Formats as % with 1 decimal place
+  adorn_ns()                                 # Shows the raw counts (n) in parentheses
+
+print(my_table1b)
+
+my_table2b <- dataOvarian2 %>%
+  tabyl(statusT, trt) %>%
+  adorn_totals(c("row", "col")) %>%          # Adds 'Total' rows and columns
+  adorn_percentages("col") %>%               # Calculates percentages by row
+  adorn_pct_formatting(digits = 1) %>%       # Formats as % with 1 decimal place
+  adorn_ns()                                 # Shows the raw counts (n) in parentheses
+
+print(my_table2b)
+
+my_table3b <- dataOvarian2 %>%
+  tabyl(statusCR, trt) %>%
+  adorn_totals(c("row", "col")) %>%          # Adds 'Total' rows and columns
+  adorn_percentages("col") %>%               # Calculates percentages by row
+  adorn_pct_formatting(digits = 1) %>%       # Formats as % with 1 decimal place
+  adorn_ns()                                 # Shows the raw counts (n) in parentheses
+
+print(my_table3b)
+
+
+```
+
+415 patients out of 606 patients (68.5%) in CP treatment group and 362 patients out of 586 patients (61.8%) in the CAP treatment group experienced progression as the first event. 98 (16.2%) patients in CP treatment group and 102 (17.4%) patients in CAP treatment group died during the follow-up.
+
+To determine if the occurrence of events differs significantly between groups, we can compare the underlying hazards.
+
+**1. Comparison of cause-specific hazards**
+
+When comparing **cause-specific hazards** we ask: "Among patients who are still alive and have not yet progressed, is the instantaneous rate of progression different between the treatment groups?"
+
+We test the null hypothesis that the hazards are equal across all time points for the specific event of interest ($k$):
+
+$$H_0: \lambda_{k,1}(t) = \lambda_{k,2}(t), \text{ for all } t ∈ [0,\tau]$$ $$H_1: \lambda_{k,1}(t) \ne \lambda_{k,2}(t), \text{ for some } t ∈ [0,\tau]$$
+
+We can use the **classical log-rank test** provided we correctly handle the competing events. That is, when testing the hazard for event $k$, **individuals who experience a competing event** (any event other than $k$) **are treated as censored at the time that competing event occurs**. We are interested in the *rate* of the event among those still alive and event-free.
+
+We calculate the aggregate difference between the observed and expected events across all event times:
+
+$$U = \sum_{allt_j} \left(d_{kj}^{(1)} - \frac{d_{jk}R_j^{(1)}} {R_j}\right)$$ We also calculate the variance of $U$, which is the sum of the variances at each event time. To determine if $U$ is statistically significant, we square the statistic and divide it by its variance. This standardised value follows a Chi-square ($\chi^2$) distribution with 1 degree of freedom (for a two-group comparison):
+
+$$\frac{U^2}{\widehat{Var}(U)} \sim \chi_1^2 $$ We can carry out the log-rank test in R using the [survdiff()](https://stat.ethz.ch/R-manual/R-devel/library/survival/html/survdiff.html) function in the [survival](https://cran.r-project.org/web/packages/survival/survival.pdf) package:
+
+```{r,warning=FALSE}
+
+# For disease progression as the first event (censoring patients who died)
+survdiff( Surv(timeMonthsCR, statusP) ~ trt, data = dataOvarian2)
+
+# For death as the first event (censoring patients who experienced progression)
+survdiff( Surv(timeMonthsCR, statusD) ~ trt, data = dataOvarian2)
+
+```
+
+We see a significant difference ($p = 0.0009$) in the rate of disease progression between the two different treatment groups, but not in the rate of death ($p = 0.6$), i.e., people are being removed from the risk set (due to death) at the same rate.
+
+Note that comparing the equality of cause-specific hazards is not equal to testing the equality of the cause-specific CIFs because there is no one-to-one relationship between cause-specific hazards and CIF, as there is between sub-distribution hazards and CIFs, as demonstrated before.
+
+It is therefore important to realise and remember that any effect of a covariate supported by the log-rank test for cause-specific hazards may not necessarily translate into a similar effect of the covariate on the cumulative incidence functions.
+
+**2. Comparison of sub-distribution hazards**
+
+While the log-rank test is used to compare cause-specific hazards, we often want to test whether the **cumulative incidence functions (CIFs)** themselves differ between groups. This is typically done using **Gray test**.
+
+Gray test evaluates the null hypothesis that the sub-distribution hazards - and therefore the CIFs due to their one-to-one-relationship - are equal across groups for the event of interest ($k$):
+
+$$H_0: h_{k,1}(t) = h_{k,2}(t), \text{ for all } t ∈ [0,\tau]$$ $$H_1: h_{k,1}(t) \ne h_{k,2}(t), \text{ for some } t ∈ [0,\tau]$$
+
+A key difference to the classical log-rank test used for the comparison of cause-specific hazards, in which individuals are removed from the risk set as soon as they experience a competing event, is that in the Gray test **individuals who experience a competing event remain in the risk set indefinitely**. They are treated as if they can never experience the event of interest, effectively weighting the denominator to reflect the total population.
+
+$$U^* = \sum_{allt_j} \left(d_{kj}^{(1)} - \frac{d_{jk}R_{*j}^{(1)}} {R_{*j}}\right),$$ where $R_{*j}^{(1)} = n_{j}^{(1)} \frac{1-\hat{F}_k^{(1)}(t_{j-1})} {\hat{S}^{(1)}(t_{j-1})}$ and $R_{*j} = R_{*j}^{(1)} + R_{*j}^{(2)}$,\
+where $n_{j}^{(1)}$ is the number of individuals at risk at time $t_j$ in group 1, $F_k^{(1)}(t_{j-1})$ is the CIF for the event $k$ at time $t_{j-1}$, and $S(t_{j-1})$ is the probability of being free of any event at time $t_{j-1}$ (KM estimate). $R_{*j}^{(1)}$ thus represents an adjusted number of individuals at risk at time $t_j$.
+
+The ratio of CIF $\left(1-F_k(t)\right)$ to KM $\left(S(t)\right)$) mathematically "inflates" the risk set to include the individuals who experienced competing events. By including the number at risk at time $t_j$ ($n_j$), the test ensures that the comparison is most heavily weighted at time points where you have the most data. Essentially, the Gray test is a weighted log-rank test on the sub-distribution hazard.
+
+We can carry out the Gray test in R using the `cuminc()]` function in the `cmprsk` package:
+
+```{r,warning=FALSE}
+
+# Gray test for difference of sub-distribution hazards or CIFs
+cmprsk::cuminc(dataOvarian2$timeMonthsCR, dataOvarian2$statusCR, group=dataOvarian2$trt)$Tests
+
+```
+
+The first line refers to progression as the first event (`statusCR` = 1) and the second line to death as the first event (`statusCR` = 2). The output also displays the value of the test statistic (stat), the p-value of the Gray test (pv), and the number of degrees of freedom of the chi-square distribution (df).
+
+We can see that the difference in the sub-distribution hazards or CIFs for time to progression as the first event was statistically significant (p-value = 0.003) but not for death as the first event (p-value = 0.628).
+
+The more general form of the score for group $i$ for the *event of interest* is the basis for Gray's test to compare sub-distribution hazards, effectively testing for differences between the CIFs
+
+$$U_i = \int_0^{\tau} W_i(t) [h_i(t)-h_0(t)] dt,$$ where $\tau$ is the maximum time, $W_i(t)$ is a weight function, $h_i(t)$ is the hazard of the sub-distribution for group $i$, and $h_0(t)$ is the hazard of the sub-distribution for all groups together.
+
+In general, the weight function is of the form $W_i(t) = L(t) R_i(t)$, where typically $L(t)=1$ (by default in `cmprsk`, `tidycmprsk`, and `mstate` packages), and
+
+$$R_i(t) = n_i(t) \frac{1-\hat{F}_i{(t-)}} {\hat{S}{(t-)}},$$ where $n_i{(t)}$ is the number of individuals at risk at time $t$ in group $i$, $F(t-)$ is the left-hand limit of the CIF for the event of interest, and $S(t-)$ is left-hand limit of the probability of being free of any event. (KM estimate).
+
+The Gray test thus incorporates time-dependent weights to account for individuals who remain in the risk set after experiencing a competing event. But if they hadn't experienced a competing event they could have been censored, and therefore the Gray test takes into account the inverse probability of being censored, to correctly adjust for those who are no longer under observation.
+
+#### Modelling in the presence of competing risks
+
+In competing risks setting, the objective of modelling is to estimate the impact of specific covariates on the occurrence of the event of interest, in the presence of competing risks. In practice, this often involves evaluating the simultaneous impact of multiple covariates, as outcomes are rarely driven by a single factor.
+
+In the data example going forward, we will continue to use the treatment group as our covariate of interest. In the context of randomised clinical trials (RCT), we would except potential confounding factors to be balanced across treatment groups. This balance allows us to attribute any differences in the outcomes more directly to the intervention itself.
+
+Again, depending on our **research question of interest** we might choose to use **cause-specific hazards model** or the \*Fine-Gray sub-distribution model\*\*.
+
+**1. Proportional cause-specific hazards model**
+
+If the interest lies in the biological effect of a covariate on the rate of an event among those currently at risk, the **cause-specific hazards model** is appropriate; specifically, we utilise the **proportional cause-specific hazards model** When the primary goal is to estimate a **hazard ratio (HR)**.
+
+The most commonly used proportional cause-specific hazards model is the **Cox proportional hazards (PH) model**:
+
+$$\lambda_k(t|X_i = x_i) = \lambda_{k,0}(t)exp(x_i\beta_k),$$
+
+where $\lambda_k(t|X_i = x_i)$ is the cause-specific hazard for event type $k$ for a subject with a covariate vector $x_i$, $\lambda_{k,0}(t)$ the baseline cause-specific hazard for event type $k$, and $\beta_k = (\beta_{k1},…,\beta_{kp{})$ ) the $p$-vector of parameters associates with the vector $X$.
+
+Note again, that **individuals experiencing competing events are treated as censored**.
+
+The estimation procedure is identical to the standard Cox PH model for one type of event. Additionally, we can test whether if a covariate’s effect differs across event types by including an interaction term between the covariate and the event type.
+
+Cause-specific Cox PH models for **progression as the first event** and **death as the first event** with the **treatment group** as the covariate of interest can be fitted using the [coxph](https://www.rdocumentation.org/packages/survival/versions/3.8-3/topics/coxph) function from the `survival` package as before:
+
+```{r,warning=FALSE}
+
+# Cause-specific Cox PH model
+
+# For disease progression as the first event
+csh_p <- coxph( Surv(timeMonthsCR, statusP) ~ trt, data = dataOvarian2)
+summary(csh_p)
+
+# For death as the first event
+csh_d <- coxph( Surv(timeMonthsCR, statusD) ~ trt, data = dataOvarian2)
+summary(csh_d)
+
+```
+
+Assuming that the proportional hazards assumption in the Cox PH model holds, the HR for progression as the first event for CAP versus CP treatment is **0.79 (95% CI = 0.68, 0.91)**, indicating a significant 21% reduction in the instantaneous rate of progression among those receiving CAP treatment compared to those receiving CP treatment, **among patients who are currently live and free of progression**. There appeared to be no significant difference in the instantaneous rate of death among those receiving CAP versus CP treatment (**HR = 0.92 (95% CI = 0.70, 1.22**), among patients who were alive and free of progression.
+
+::: callout-tip
+### Student exercise
+
+Before interpreting any analysis results, we should always verify that the underlying model assumptions are met. Practise the previously covered survival analysis techniques to evaluate whether the proportional hazards assumption in the Cox PH model is met for these models.
+:::
+
+**2. Fine and Gray sub-distribution PH model**
+
+To quantify the 'real-world' effect of covariates while accounting for competing events, we model sub-distribution hazards:
+
+$$h_k(t|X_i = x_i) = h_{k,0}(t)exp(x_i\gamma_k),$$
+
+where $h_k(t|X_i = x_i)$ is the sub-distribution hazard for event type $k$ for a subject with a covariate vector $x_i$, $h_{k,0}(t)$ the baseline sub-distribution hazard for event type $k$, and $\gamma_k = (\gamma_{k1},…,\gamma_{kp{})$ ) the $p$-vector of parameters associates with the vector $X$.
+
+This allows for the direct quantification of covariate impacts on the cumulative incidence functions.
+
+The Fine and Gray model utilises a partial likelihood approach similar to the Cox model, but with a modified risk set and the inclusion of weights:
+
+$$L(\gamma_k) = \prod_{j=1}^r \frac{exp(x_i\gamma_k)} {\sum_{i∈R_j} w_{ji}exp(x_i\gamma_k)},$$ where the product is taken over the $r$ time points $(t_1< t_2 <⋯<t_r)$ where the event of interest occurs.
+
+The weights are defined using the inverse probability of censoring weighting (IPCW) approach:
+
+$$w_{ji} = \frac{\hat{G}(t_j)}{\hat{G}(min(t_j,t_i))},$$ where G $\hat{G}$ is the KM estimate of survivor function of the censoring distribution; for those still alive and event-free $w=1$ while for those with competing events the weight gradually decreases based on the probability of being censored.
+
+The Fine and Gray model for **progression as the first event** and **death as the first event** with the **treatment group** as the covariate of interest can be fitted using the [crr](https://www.rdocumentation.org/packages/survival/versions/3.8-3/topics/coxph) function from the `cmprsk` package:
+
+```{r,warning=FALSE}
+
+# Fine and Gray model
+
+# Can be built using the crr function from the cmprsk package
+# Before doing so, we first have to put all covariates (here only treatment)
+# in a design matrix removing intercept
+
+# putting covariates into design matrix
+ov_cov_matrix <- model.matrix(~dataOvarian2$trt)
+head(ov_cov_matrix)
+# removing intercept
+ov_cov_matrix_ni <- ov_cov_matrix[,-1]
+head(ov_cov_matrix_ni)
+
+# Fine and Gray model for progression as first event
+# failcode = 1 indicates that we are considering progression as first event
+sh_p <- cmprsk::crr(dataOvarian2$timeMonthsCR, dataOvarian2$statusCR, cov1 = ov_cov_matrix_ni, failcode = 1)
+sh_p
+summary(sh_p)
+
+# Fine and Gray model for death as first event
+# failcode = 2 indicates that we are considering death as first event
+sh_d <- cmprsk::crr(dataOvarian2$timeMonthsCR, dataOvarian2$statusCR, cov1 = ov_cov_matrix_ni, failcode = 2)
+sh_d
+summary(sh_d)
+
+```
+
+Assuming that the Fine and Gray model assumptions hold, **the sub-distribution hazard ratio (SHR)** for progression for CAP versus CP treatment is **0.81 (95% CI = 0.70, 0.93)**. This indicates a significant 19% reduction in the sub-distribution hazard - and consequently the cumulative incidence - of progression for those receiving CAP, **accounting for the competing risk of death**. Furthermore, there was no significant difference in the sub-distribution hazard of death between the groups (**HR = 1.07 (95% CI = 0.81, 1.42**), after accounting for the competing risk of disease progression. Since the death hazards are similar, the reduction in progression is likely a true treatment effect on the diseases, and not because the CAP group is dying faster.
+
+**Fine and Gray PH model assumptions**
+
+Since the Fine and Gray model is essentially a proportional hazards model adapted for the sub-distribution hazard, its assumptions mirror those of the standard Cox model:
+
+*1. Proportional sub-distribution hazards* The ratio of the sub-distribution hazards between groups remains **constant over time**.
+
+*2. Linearity of covariates* For continuous variables, the model assumes that the relationship between the covariate and the log sub-distribution hazard is linear.
+
+*3. Independence of administrative censoring* The model assumes that administrative censoring (loss to follow-up or study end) is independent of the risk of the event.This is particularly important because the Fine and Gray model uses IPCW weights based on the censoring distribution. If those who are censored are fundamentally different from those who remain, the weights — and therefore the model results — will be biased.
+
+The model assumption checks are also similar to those of the Cox model:
+
+::: no-indent
+1.  **Visual inspection:** Plot the CIFs. If the curves cross, proportionality may be an issue
+
+2.  **Schoenfeld residuals:** Just like in a Cox model, you can test the residuals. You can use `cox.zph()` function from `survival` package on a Fine and Gray model.
+
+3.  **Time-interaction terms:** Include a term in your model for `covariate * log(time)`. If the p-value for this term is significant, the proportionality assumption likely fails.
+:::
+
+::: callout-tip
+### Student exercise
+
+Practise the previously covered survival analysis techniques to evaluate whether the proportional hazards assumption in the Fine and Gray PH model is met for the example models.
+:::

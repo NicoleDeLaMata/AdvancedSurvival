@@ -1,0 +1,57 @@
+---
+title: "Advanced Survival Short Course 2026"
+format: 
+  html:
+    embed-resources: true
+    code-overflow: wrap
+toc: true
+toc-depth: 3
+---
+
+## Welcome
+
+Welcome to the "Advanced survival concepts and analysis" short course in 2026!
+
+You will find all the related content either here on this webpage or via [Github](https://github.com/NicoleDeLaMata/AdvancedSurvival).
+
+Please let us know if there are any technical issues.
+
+## Timetable
+
+Day 1: Thursday 26th Feb
+
+| Times | Topic | Facilitator |
+|--------------------|----------------------------------|------------------|
+| *8:30 - 9:00* | [*Optional: Introduction to R*](intro_R.qmd) | *All* |
+| 9:00 - 9:15 | [Welcome and overview: Today's topics](OverviewD1.qmd) | Nicole |
+| 9:15 - 11.20 | [PH assumption violation in Cox models](PH_assump.qmd) | Farzaneh |
+| 11:20 - 11.30 | Break |  |
+| 11:30 - 12:30 | [Joint modelling: survival concepts](Joint_model.qmd) | Farzaneh |
+| 12.30 - 1:15 | Lunch |  |
+| 1:15 - 2:00 | [Joint modelling: survival concepts (continued)](Joint_model.qmd) | Farzaneh |
+| 2:00 - 2:50 | [Parametric survival models](Parametric.qmd) | Maarit |
+| 2:50 - 3:00 | Break |  |
+| 3:00 - 3:50 | [Flexible parametric survival models](Flexible1.qmd) | Maarit |
+| 3:50 - 4.00 | Wrap-up | Maarit |
+
+Day 2: Friday 27th Feb
+
+| Times | Topic | Facilitator |
+|--------------------|----------------------------------|------------------|
+| 9:00 - 9:15 | [Recap and overview: today's topics](OverviewD2.qmd) | Nicole |
+| 9:15 - 11.00 | [Competing risks models](Competing.qmd) | Maarit |
+| 11:00 - 11.10 | Break |  |
+| 11:10 - 12:30 | [Flexible parametric survival models (continued)](Flexible2.qmd) | Nicole |
+| 12.30 - 1:15 | Lunch |  |
+| 1:15 - 2:50 | [Multi-state modelling](Multistate.qmd) | Nicole |
+| 2:50 - 3:00 | Break |  |
+| 3:00 - 3:50 | [Multi-state modelling (continued)](Multistate.qmd) | Nicole |
+| 3:50 - 4.00 | Wrap-up | Maarit |
+
+## Facilitators
+
+|  |  |
+|--------------------|----------------------------------------------------|
+| ![](https://github.com/NicoleDeLaMata/PreWorkshop_AdvancedSurvival/blob/Webpage/NicoleD.webp?raw=true){width="350"} | Dr [Nicole De La Mata](https://profiles.sydney.edu.au/nicole.delamata) is a senior lecturer in biostatistics at the University of Sydney. Her expertise lies in establishing data linkage studies and using these to apply advanced statistical models to understand patient journeys and complex clinical scenarios. Her work has broadly aimed to improve health service quality and efficiency to translate into better and more equitable patient outcomes. She has a special interest in multi-state modelling and competing risks models. |
+| ![](https://github.com/NicoleDeLaMata/PreWorkshop_AdvancedSurvival/blob/Webpage/FarzanehB.webp?raw=true){width="350"} | Dr [Farzaneh Boroumand](https://profiles.sydney.edu.au/farzaneh.boroumand) is a Lecturer in Biostatistics at the Sydney School of Public Health and a senior biostatistician at the Centre for Kidney Research, Westmead Hospital. She is passionate about transforming complex statistical concepts into clear, practical insights and designing interactive learning experiences that help postgraduate students apply biostatistics confidently in real-world health research. Her research focuses on survival analysis, causal inference, and chronic kidney disease, collaborating with clinicians and multidisciplinary teams to improve patient outcomes. |
+| ![](https://github.com/NicoleDeLaMata/PreWorkshop_AdvancedSurvival/blob/Webpage/MaaritL.webp?raw=true){width="350"} | Associate Professor [Maarit Laaksonen](https://profiles.sydney.edu.au/maarit.laaksonen) is an Associate Professor in Biostatistics in the Sydney School of Public Health. She leads national and international data linkage projects evaluating the determinants of the future burden of cancer with the aim of improving cancer prevention, early detection and outcomes. Maarit has a strong interest in the development and application of disease burden measures, survival models and the impact of competing risks on health outcomes. |

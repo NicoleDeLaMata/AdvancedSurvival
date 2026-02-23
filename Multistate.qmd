@@ -1,0 +1,750 @@
+---
+title: "3 Multi-state modelling"
+format: 
+  html:
+    embed-resources: true
+    code-overflow: wrap
+toc: true
+toc-depth: 3
+---
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+## Learning objectives
+
+::: callout-note
+By the end of this lecture, you should be able to:
+
+-   Understand the concepts of **multi-state survival** analysis
+-   Construct a **state-space** that reflects a multi-state model
+-   Understand marginal and conditional **multi-state parameters**
+-   Produce **Nelson-Aalen** estimates for cumulative hazards
+-   Produce **Aalen-Johansen** estimates for probability in state
+-   **Restructure** data in preparation for multi-state model analysis
+-   Apply **Cox proportional hazards** and **flexible parametric models** to estimate covariate effects on transitions
+:::
+
+## Basic concepts of multi-state modelling
+
+Multi-state modelling considers that patients are followed up over continuous time period, but are observed to **transition to different states** over the follow-up period.
+
+There are different states where a subject can occupy and possible transitions between these states, represented with arrows. In the simplest form, the **two state survival model**, is how most survival analysis to all-cause death work. The individuals are in an alive state and then we observe their deaths, if they occur.
+
+![](https://raw.githubusercontent.com/NicoleDeLaMata/AdvancedSurvival/refs/heads/Webpage/twostate_surv.png){width="387"}
+
+Multi-state models can be considered an extension of **competing risks model**, and are often considered in analogous terms. In competing risks models, we have an initial state and several mutually exclusive absorbing states.
+
+![](https://raw.githubusercontent.com/NicoleDeLaMata/AdvancedSurvival/refs/heads/Webpage/competing_surv.png){width="430"}
+
+In multi-state models, we have **intermediate states** that are neither initial or absorbing.
+
+![](https://raw.githubusercontent.com/NicoleDeLaMata/AdvancedSurvival/refs/heads/Webpage/threestate_surv.png){width="387"}
+
+These can also sometimes allow for **recurrent events**.
+
+![](https://raw.githubusercontent.com/NicoleDeLaMata/AdvancedSurvival/refs/heads/Webpage/recurrent_surv.png){width="437"}
+
+::: callout-tip
+### Published study examples
+
+We refer to two published study examples that use a multi-state hazards modelling approach: [Therneau, TM et al (2024)](Resources.qmd) and [De La Mata NL (2024)](Resources.qmd).
+:::
+
+## Definitions of multi-state approach
+
+**Defining states:**
+
+-   Absorbing states: Subjects will never leave state *h* once entered (e.g. death).
+
+-   Transient states: Subjects can move from state *h* to state *j* once entered (e.g. diseased or illness), either once or multiple times.
+
+**Transition times:**
+
+We consider where we can assume we have exact observed transition times, not where events have happened during some interval.
+
+![](https://raw.githubusercontent.com/NicoleDeLaMata/AdvancedSurvival/refs/heads/Webpage/exact_transition.png){width="595"}
+
+## How can we model multi-state data?
+
+Non-parametric approaches:
+
+-   Nelson-Aalen estimator for cumulative hazard
+
+-   Aalen-Johansen estimator for state occupation probability
+
+Modelling 'cause-specific' hazards:
+
+-   Cox proportional 'cause-specific' hazards model
+
+-   Flexible parametric 'cause-specific' hazards model
+
+::: callout-warning
+### About Markov multi-state modelling
+
+We won't explicitly cover content on Markov multi-state modelling approach, but we will briefly outline instances where they differ.
+
+In general, Markov models are useful in multi-state modelling when exact transition times aren't known. The Markov assumption is "future states depend solely on the current state, not on sequence of events that preceded it", i.e. it is memoryless.
+:::
+
+## Nelson-Aalen estimator
+
+This is a non-parametric approach to estimate **cumulative transition hazard**, the total cumulative risk of state *h* at time *t*.
+
+If we observe $l \rightarrow j$ transitions at $t$ (i.e. $\Delta N_{lj} (t)>0$), we estimate this conditional transition probability as the ratio of the number $\Delta N_{lj} (t)$ of $l \rightarrow j$ transitions divided by the the number $Y_l (t)$ at risk just prior to transition time $t$. Summing over these increments yields the Nelson-Aalen estimators:
+
+$$
+\hat{A}_{lj} (t) = \sum_{s \leq t} \frac {\Delta N_{lj} (s)} {Y_l (s)}, l \neq j
+$$
+
+## Aalen-Johansen estimator
+
+This is a non-parametric approach to estimate **state occupation probability**, the probability (risk) of being in state $h$ at time $t$. It is a matrix version of the Kaplan-Meier estimator.
+
+For each unique time where an event occurs, form the transition matrix $T(t)$ with elements or rates $\lambda\_{ij} (t)$ = the fraction of subjects who transition from state $i$ to $j$ at time $t$, among those in state $i$ just prior to time $t$. Then:
+
+$$
+p(t) = p(0) \prod_{s \leq t} T(s)
+$$
+
+Where $p(0)$ is the initial distribution of subjects.
+
+::: callout-note
+The area under the curve for the Aalen-Johansen estimator produces the mean sojourn time in state.
+:::
+
+## Transition intensities
+
+These describe the instantaneous risks of transitions betweeen the states (akin to hazard).
+
+Consider $l \rightarrow j$ transition hazard, where $\beta_{lj}$ is a $1 \times p$ vector of regression coefficients, $Z_{i}$ is a $p \times 1$ vector of covariates for individual $i$, and $\alpha_{lj;0}(t)$ is an unspecified, non-negative baseline hazard function.
+
+$$
+\alpha_{lj;i}(t; Z_{i}) = \alpha_{lj;0}(t) \cdot exp(\beta_{lj}\cdot Z_{i}), l,j\in \{ 0,1,2,...,J\}, l \neq j, i=1,...n
+$$
+
+::: callout-note
+### Important note
+
+-   Depends on time *t* since time origin and on baseline (i.e. time fixed covariates)
+
+-   Hazard does not necessary depend on time at which entering current state (i.e. it does not consider the time spent in prior state)
+
+-   Assumes common baseline hazard for each transition, regardless of how many times they entered this state before
+:::
+
+## Marginal parameters
+
+We have provided here definitions of marginal parameters relevant to multi-state modelling that may be of interest.
+
+**Marginal parameters express:** You place yourself at time $0$ and ask questions about aspects of the multi-state process $V(\cdot)$ at a later time point $t$ (without consideration of what may happen between $0$ and $t$).
+
+-   **State occupation probability:** The probability (risk) of being in state $h$ at time $t$.
+
+-   **Restricted mean:** The expected time spent in state $h$ being time $t$.
+
+-   **Distribution of time** $T_h$ to (first) entry into state $h$ (relevant if everyone starts at time $0$ in the same state $0$).
+
+-   **Expected number of events before time *t*:** relevant for recurrent events process $N(\cdot)$, counting the number of events over time.
+
+## Conditional parameters
+
+We have provided here definitions of conditional parameters relevant to multi-state modelling that may be of interest.
+
+**Conditional parameters** for multi-state process $V(\cdot)$ quantify, at time $t$, the future development of the process conditionally on the past of the process before time $t$.
+
+-   **Transition intensities:** $\alpha_{lj}(t)$ gives the probability per time unit of moving to state $j$ right after time $t$ given that you are in state $l$ at $t$ and may consider the past up to $t$.
+
+-   **Transition probabilities:** $P_{lj}(s,t)$ gives the probability of being in state $j$ at time $t$, given that you were in state $l$ at an earlier time point $s$ and given the past history of $V(\cdot)$ up to that earlier time point (also defined if $l$ and $j$ are the same state).
+
+## Model considerations
+
+There are general considerations when constructing the multi-state model.
+
+-   Clinically relevant model versus availability of data to reflect these.
+
+-   Too few data for transitions may cause convergence issues.
+
+-   Measure of time: origin or study entry, or age or calendar year.
+
+![](https://raw.githubusercontent.com/NicoleDeLaMata/AdvancedSurvival/refs/heads/Webpage/timescale.png){width="597"}
+
+-   Clock forward versus clock reset. What this means for interpretation of your model?
+
+![](https://raw.githubusercontent.com/NicoleDeLaMata/AdvancedSurvival/refs/heads/Webpage/clockreset.png){width="469"}
+
+## Worked example: Colon cancer
+
+### Data set up
+
+Let's start with loading the packages and data
+
+```{r}
+#Load packages
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(survival)
+library(mstate)
+library(flexsurv)
+library(mvna)
+
+#Load colon cancer data
+colon <- survival::colon
+
+```
+
+Below is the list of variables.
+
+id: id\
+study: 1 for all patients\
+rx: Treatment - Obs(ervation), Lev(amisole), Lev(amisole)+5-FU\
+sex: 1=male\
+age: in years\
+obstruct: obstruction of colon by tumour\
+perfor: perforation of colon\
+adhere: adherence to nearby organs\
+nodes: number of lymph nodes with detectable cancer\
+time: days until event or censoring status: censoring status\
+differ: differentiation of tumour (1=well, 2=moderate, 3=poor)\
+extent: Extent of local spread (1=submucosa, 2=muscle, 3=serosa, 4=contiguous structures)\
+surg: time from surgery to registration (0=short, 1=long)\
+node4: more than 4 positive lymph nodes\
+etype: event type: 1=recurrence, 2=death
+
+We will have a quick look at how the data is set up.
+
+```{r}
+#View first ten rows of data
+print(colon[1:10,])
+```
+
+Mostly importantly, we see that **id** defines each individual, **time** is given in days and **etype** defines the states of interest.
+
+[**Create state space figure**]{.underline}
+
+Some initial data checks should be performed to ensure the times are expected and align with our proposed state space, defined below
+
+```{r}
+#State space figure
+states <- c("Disease-free\n(929)", "Recurrence", "Death")
+smat <- matrix(0, 3, 3, dimnames=list(from=states, to=states))
+smat[1, 2:3] <- 1; smat[2, 3] <- 1
+smat
+
+#smat is a matrix with a 1 for any valid transition, 0 otherwise
+#| fig-width: 2
+#| fig-height: 3
+statefig(1:2, smat)
+
+# Add numbers to arrows manually
+text(x = 0.5, y = 0.68, labels = "468")
+text(x = 0.5, y = 0.3, labels = "38")
+text(x = 0.8, y = 0.5, labels = "414")
+
+```
+
+[**Check for tied times**]{.underline}
+
+We will now check that there are not times are not tied and, if so, fix the times tied so recurrence occur prior to death.
+
+```{r}
+#Divide the data into the two states
+c1 <- subset(colon, etype== 1) # recurrence
+c2 <- subset(colon, etype== 2) # death
+
+#Check for tied times
+tied.id <- (c1$time == c2$time & c1$status==1 & c2$status==1)
+table(tied.id)
+
+# There are 5 subjects with recurrence coded on the same day as death.
+# Make them recur one day earlier than their death (avoid 0 length intervals)
+c1$time[tied.id] <- c1$time[tied.id] -1
+```
+
+::: {.callout-tip title="Hint"}
+Other important data checks for time include checking preceding and proceeding states (e.g. death is always the state with the maximum time), deciding order of events when tied times, and censoring event times.
+:::
+
+Create a dataset that consecutive times, running from **time1** to **time2**, and **state** variable indicating which event occured.
+
+```{r}
+# Create the counting process dataset
+cdata <- tmerge(subset(c2, ,-c(study, time, status, etype)),
+c2, id=id, death= event(time, status),
+options=list(tstart="time1", tstop="time2"))
+cdata <- tmerge(cdata, c1, id= id, recur= event(time, status),
+td.recur = tdc(time))
+
+#Check transitions
+table(cdata$recur, cdata$death)
+
+# The table above verifies no tied event times
+# Make the state variable
+cdata$state <- with(cdata, factor(recur+ 2*death, 0:2,
+c("censor", "recur", "death")))
+
+```
+
+We then proceed with re-adjusting the variables included to prepare for modelling, including the time variable from days to years.
+
+```{r}
+# Create some simple variables
+cdata$age10 <- cdata$age/10 # age in decades
+cdata$male <- 1*(cdata$sex ==1) # 0/1: male
+cdata$trt <- 1*(cdata$rx == "Lev+5FU")
+# a 0/1 treatment variable, 1=Lev+5FU, 0= Observation or Lev
+# Output in years gives simpler plots
+cdata$time1 <- cdata$time1/365.25
+cdata$time2 <- cdata$time2/365.25
+```
+
+We can check the **time1**, **time2** and **state** variables are working as we expected.
+
+```{r}
+# Check for consistency
+check <-survcheck(Surv(time1, time2, state) ~ 1, cdata, id=id)
+check
+
+```
+
+### Nelson-Aalen estimates
+
+Now our data is ready to produce some estimates. Let's start with Nelson-Aalen.
+
+```{r}
+# Matrix of logical giving the possible transitions
+tra <- matrix(ncol=3,nrow=3,FALSE)
+tra[1, 2:3] <- TRUE
+tra[2, 3] <- TRUE
+
+#Select & prepare relevant data
+cdata_na <- cdata %>% select(id, time1, time2, state) %>% 
+  group_by(id) %>% 
+  mutate(seq=row_number()) %>%  ungroup() %>% 
+  mutate(
+  from = factor(case_when(
+    time1 == 0 ~ "entry",
+    seq == 2 ~ "recur"), levels = c("entry", "recur")),
+  to = factor(case_when(
+    state=="recur" ~ "recur",
+    state=="death" ~ "death",
+    state=="censor" ~ "cens"
+  ), levels = c("recur", "death", "cens")
+), time = time2) %>% 
+  select(-seq, -state, -time1, -time2)
+
+#Nelson-Aalen estimates
+na <- mvna(cdata_na, c("entry", "recur", "death"), tra, "cens")
+
+#Graph settings
+mycolor <- c("#440154FF","#32648EFF","#21908CFF","#5DC863FF","#DCE318FF","#FFFFFF")
+opar <- par(no.readonly = TRUE)
+
+#Cumulative hazard - days since enrolment
+#| fig-width: 2
+#| fig-height: 3
+plot(na, lwd=2, col=mycolor[c(2,4, 1)],
+xlab="Days since enrolment", ylab="Cumulative hazard")
+
+#Convert time to years
+cdata_na$time <- cdata_na$time/365.25
+
+#Nelson-Aalen estimates
+na <- mvna(cdata_na, c("entry", "recur", "death"), tra, "cens")
+
+#Cumulative hazard - days since enrolment
+#| fig-width: 2
+#| fig-height: 3
+plot(na, lwd=2, col=mycolor[c(2,4, 1)],
+xlab="Years since enrolment", ylab="Cumulative hazard")
+
+```
+
+The cumulative hazard rapidly increases for the transition from recurrence to death, at a much greater rate than from entry to death, and consistently increasing over time. For the transition from entry to recurrence, we see an initial increase which subsequently plateaus.
+
+### Aalen-Johansen estimates
+
+Let's move on to produce Aalen-Johansen estimates.
+
+```{r}
+#Aalen-Johansen estimates
+aj0 <- survfit(Surv(time1, time2, state) ~1, data=cdata, id=id) # overall
+aj1 <- survfit(Surv(time1, time2, state) ~ trt, data=cdata, id=id) # by arm
+
+#Graph settings
+mycolor <- c("#440154FF","#32648EFF","#21908CFF","#5DC863FF","#DCE318FF","#FFFFFF")
+opar <- par(no.readonly = TRUE)
+
+#Probability in state graphs - overall
+#| fig-width: 2
+#| fig-height: 3
+plot(aj0, noplot=NULL, lwd=2, col=mycolor[c(2,4, 1)],
+xlab="Years since enrollment", ylab="Probability in state")
+# the noplot=NULL option results in s(0) line being plotted
+legend(4, 1, c("Alive w/o recurrence", "Recurrence", "Death"), lwd=2,
+col=mycolor[c(2, 4, 1)], bty='n')
+
+#Probability in state graphs - by treatment
+#| fig-width: 2
+#| fig-height: 3
+plot(aj1, noplot=NULL, lwd=2, lty=1:2, col=mycolor[c(2,2,4,4,1,1)],
+xlab="Years since enrollment", ylab="Probability in state")
+legend(4.5, 1, c("Alive, control", "Alive, 5FU+Lev",  "Recurrence, Control", "Recurrence, 5FU+Lev",
+"Death, Control", "Death, 5FU+Lev"),
+lwd=2, lty=1:2, col=mycolor[c(2,2,4,4,1,1)], bty='n')
+
+```
+
+The estimated probability in state conincides with patterns we saw in the cumulative hazard. Probability for death increases over time, resulting in lower probability of being alive without recurrence. Further, we see the probability of recurrence peaks in the first two years (where the cumulative hazard rapidly increases), before reducing over time.
+
+Producing the expected time in state also can call upon these output from *survfit()*. We can also add more covariates to see how the expected mean time changes.
+
+```{r}
+#Expected time in state
+print(aj1, rmean= 8, digits=2) #print sojourn time restricted to 8 years
+
+#Adjusted AJ for expected times
+aj2 <- survfit(Surv(time1, time2, state) ~ trt+male, data=cdata, id=id) # by arm
+
+#Print expected times
+print(aj2, rmean= 8, digits=2) #print sojourn time restricted to 8 years
+
+```
+
+We see that rmean adds up to 8 for each stratum created. However, it can becomes problematic to calculate expected mean times in state using Aalen-Johansen if you'd like to adjust for many other factors. The covariates function as stratum, and so begin to split the data and events quite rapidly. We also don't have the functionality to create a new dataframe to predict upon when using Aalen-Johansen (we will see how we can do this using Cox or flexible parametric).
+
+### Cox proportional 'cause specific' hazards model
+
+Now, let's fit a multistate hazards model (i.e. Cox proportional hazards).
+
+```{r}
+# fit the model
+cfit <- coxph(Surv(time1, time2, state) ~ trt +age10 + male + extent + node4,
+data=cdata, id=id)
+print(cfit, digits=2)
+summary(cfit)
+```
+The multivariate model allows us to assess the covariate effects on the transitions. For example, the treatment effect from transition 1 (Disease-free) to 2 (Recurrence) has HR estimate of 0.60 (95%CI: 0.49, 0.74) and for transition 2 (Recurrence) to 3 (Death) has HR estimate of 1.33 (95%CI: 1.06, 1.68).
+
+We can create a forest plot of the HR estimates and their 95%CI.
+
+```{r}
+# get the HR, and lower and upper limit
+temp <- summary(cfit)$conf.int[ , c(1,3,4)]
+
+# generate the forest plot
+par(mar=c(5,7, 1, 1)) # more room for y axis labels
+yy <- c(outer(5:1, c(12, 0, 6), "+"))
+
+#| fig-width: 2
+#| fig-height: 3
+plot(c(.5,4), range(yy), log='x', type="n", xlab="Hazard ratio", ylab="", yaxt= 'n')
+axis(2, at=yy, label=rep(c("Lev+5FU", "Age", "Male", "Extent", ">4 Nodes") ,3), las=2)
+points(temp[,1], yy, pch=19)
+segments(temp[,2], yy, temp[,3], yy, lwd=1.5)
+abline(h=c(6,12), lwd=2, lty=2, col=mycolor[5])
+abline(v=1, lty=3)
+text(c(2.5, 2.5, 3), c(16, 10, 5), c("Disease-free:Recurrence", "Recurrence:Death",
+"Disease-free:Death"))
+```
+
+We can run similar checks on the Cox proportional hazards model, such as the proportionality test below.
+
+```{r}
+#Proportional hazards test
+ph_test <- cox.zph(cfit)
+ph_test
+```
+
+
+We can use this model to produce predicted probability in state and expected time in state. For this example, we have simplified the model to replicate the barplot in the paper. However, you can create your own combinations for the covariates.
+
+```{r}
+#Simplified model
+cfit2 <- coxph(Surv(time1, time2, state) ~ trt + extent + node4, data=cdata, id=id)
+
+#Create dummy data
+dummy <- expand.grid(trt=0:1, extent=1:4, node4= 0:1) # 16 combinations
+
+# Predicted probability in state from the MSH model
+csurv2 <- survfit(cfit2, newdata=dummy) # 16 predicted curves
+```
+
+The resulting csurv2 does produce probability in state from the Cox model, but this is only until the max time in the original patient dataset (cdata) and against the 16 combinations.
+
+```{r}
+# calculate the sojourn time and assemble it into a matrix
+temp <- summary(csurv2, rmean=8)$table[,"rmean"]
+sojourn <- matrix(temp, 16, 3,
+dimnames=list(NULL, c("disease-free", "recurrence", "death")))
+sdata <- cbind(dummy, round(sojourn,2)) # add this to the dummy data frame
+sdata
+```
+
+We can see for each combination of covariates in our dummy data, we have the predicted expected time in state, which adds up to 8 years across the three states. The below summarises the expected time in state into a bar plot.
+
+```{r}
+# plot the sojourn
+rownames(sojourn) <- paste(
+rep(rep(c("T1", "T2", "T2", "T4"), each=2),2), rep(c("/<=4 nodes","/> 4 nodes"), each=8),
+rep(c("/Control", "/Lev+5FU"), 8))
+
+# put the controls together
+xx <- rev(c(1,3,5,7,2,4,6,8))
+xx <- c(xx+8, xx)
+par(mar=c(2, 11, 0.5, 0.5))
+
+#| fig-width: 2
+#| fig-height: 3
+barplot(t(sojourn[xx,]), horiz=TRUE, col=mycolor[c(5, 1, 6)],
+las=1)
+abline(h=c(4.9, 9.7,14.5), lwd=2, col=mycolor[3])
+```
+
+### Multistate data wrangling with mstate
+
+We can also use the mstate package and to produce similar non-parametric estimates (i.e. cumulative hazard and probability in state) and subsequent functionality with flexsurv.
+
+First we will create the transition matrix, which assigns a consecutive number to each of the transitions and list the element where the transition exists in each row of the matrix. This functions differently to the above, which was mostly aesthetic and to understand the data layout.
+
+Let's say instead we had our dataset in a wide format, one line per individual and separate variables for time to each state and status to each state. We can reshape our c1 and c2 datasets to create this hypothetical dataset.
+
+```{r}
+#Wide dataset for colon
+cdata_wide <- c1 %>% rename(time_recur = time,
+                            status_recur = status) %>% 
+  select(id, time_recur, status_recur) %>% 
+      left_join(c2, by="id") %>% select(-etype) %>% 
+  rename(time_death = time, status_death = status)
+
+#Print data
+print(cdata_wide[1:10,])
+```
+
+We could use msprep in the mstate package to help reshape our data into long format for a multi state analysis. We first define the transition matrix and then run the msprep.
+
+```{r}
+#Transition matrix
+tmat <- transMat(x = list(c(2,3), c(3), c()), names=c("Alive", "Recurrence", "Death"))
+
+#Check time_death and time_recur are not equal
+cdata_wide %>% filter(time_recur>=time_death & status_recur==1) %>% print()
+
+#Adjust by one day so recur occurs one day earlier
+cdata_wide <- cdata_wide %>% 
+  mutate(time_recur = case_when(
+    id %in% c(239, 602) ~ time_recur-1,
+    TRUE ~ time_recur
+  ))
+
+#Reshape using msprep
+cdata_long <- msprep(data=cdata_wide, trans=tmat, time=c(NA, "time_recur", "time_death"), status=c(NA, "status_recur", "status_death"), keep=c("rx", "sex", "age", "obstruct", "perfor", "adhere", "nodes", "differ", "extent", "surg", "node4"))
+
+```
+
+Let's now fit Cox model without any covariates, so we define a baseline hazards for each transition and then use msfit() to produce the cumulative hazards. You'll see this equates to the Nelson-Aalen estimates of cumulative hazard produced above.
+
+```{r}
+#Convert time to years since enrolment
+cdata_long$Tstart <- cdata_long$Tstart/365.25
+cdata_long$Tstop <- cdata_long$Tstop/365.25
+
+#Fit Cox model with separate baseline hazards for each transition
+cfit_mstate <- coxph(Surv(Tstart, Tstop, status) ~ strata(trans),
+data=cdata_long, id=id)
+print(cfit_mstate, digits=2)
+summary(cfit_mstate)
+
+#Cumulative hazards
+msfit_mstate <- msfit(cfit_mstate, trans=tmat)
+
+#Graph settings
+mycolor <- c("#440154FF","#32648EFF","#21908CFF","#5DC863FF","#DCE318FF","#FFFFFF")
+
+#Plot of cumulative hazards
+#| fig-width: 2
+#| fig-height: 3
+plot(msfit_mstate, lwd=2, col=mycolor[c(2,4, 1)],
+xlab="Years since enrolment", ylab="Cumulative hazard")
+
+```
+
+Similarly, we can apply the probtrans() function to produce the transition probabilities. You'll see this equates to the Aalen-Johansen estimates of probability in state produced.
+
+```{r}
+#Probabilities in state
+pr0 <- probtrans(msfit_mstate, predt = 0)
+
+#From entry to other states
+pr0_from1 <- pr0[[1]]
+
+#Plot of probabilities in state
+#| fig-width: 2
+#| fig-height: 3
+matplot(pr0_from1$time, pr0_from1[, grep("^pstate", names(pr0_from1))], type = "l", lwd=2, lty = 1, xlab = "Years from enrolment", ylab = "Probability in state", col=mycolor[c(2,4, 1)])
+legend(4,1,
+       legend = c("Alive w/o recurrence", "Recurrence", "Death"),
+       col = mycolor[c(2, 4, 1)],
+       lty = 1, lwd=2)
+
+```
+
+WHAT ELSE CAN WE DO WITH MSTATE - FIT COX MODELS WITH COVARIATES. BUT IT DOESNT GIVE TRANSITION SPECIFIC EFFECTS?
+
+
+### Flexible parametric 'cause specific' survival model
+
+Let's move onto how we can fit flexible parametric survival models for multi-state approach. 
+
+```{r}
+#Treatment variable
+cdata_long$trt <- 1*(cdata_long$rx == "Lev+5FU")
+cdata_long$age10 <- cdata_long$age/10 # age in decades
+cdata_long$male <- 1*(cdata_long$sex ==1) # 0/1: male
+
+
+#Fit separate models for each transition - as given by output from mstate
+msm_alive_recur <- flexsurvspline(Surv(Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==1), k=2, scale="hazard")
+msm_alive_recur
+
+msm_alive_death <- flexsurvspline(Surv(Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==2), k=2, scale="hazard")
+msm_alive_death
+
+msm_recur_death <- flexsurvspline(Surv(Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==3), k=2, scale="hazard")
+msm_recur_death
+```
+
+We have fitted a separate model for each transition, using the subset option, and each has 2 internal knots. We can use the above to determine the covariate effects for each transition. 
+
+We see that the treatment does reduce hazard of recurrence (HR: 0.60, 95%CI: 0.49, 0.74), but does not affect the hazard of death either from disease-free state (HR: 1.03, 0.53, 1.99) or the recurrence state (HR: 1.07, 95%CI: 0.86, 1.35).
+
+We can then group the transition models together using fmsm, and the associated transition matrix. We can produce the AIC for the entire transition model, allowing us to compare different knot selections.
+
+```{r}
+#Define transition matrix
+tmat_flexsurv <- rbind(c(NA,1,2), c(NA, NA, 3), c(NA, NA, NA))
+tmat_flexsurv
+
+#Group transitions together
+msm_alltrans <- fmsm(msm_alive_recur, msm_alive_death, msm_recur_death, trans=tmat_flexsurv)
+msm_alltrans
+
+#AIC for entire transition model
+AIC(msm_alltrans)
+```
+
+We are now able to use the entire transition model to produce other relevant estimates, though it is somewhat more limited than the functions available for flexsurvreg. Below we are able to produce the cumulative transition-specific intensity function (cumulative hazard) for newdata with set covariates. We can only define one covariate set per msfit.flexsurvreg(), so we would need to re-run with alternate covariate pattern to make any comparisons.
+
+```{r}
+
+#New data to estimate on
+msm_preddata <- data.frame(
+  trt = c(0),
+  age10=c(4),
+  male=c(0),
+  extent = c(0),
+  node4 = c(0)
+)
+
+#Cumulative intensity function
+cum_trans<- msfit.flexsurvreg(msm_alltrans, t=seq(0,5,by=0.2), newdata=msm_preddata, trans=tmat_flexsurv)
+
+#Graph settings
+mycolor <- c("#440154FF","#32648EFF","#21908CFF","#5DC863FF","#DCE318FF","#FFFFFF")
+
+#Plot over time
+#| fig-width: 2
+#| fig-height: 3
+plot(cum_trans, lwd=2, col=mycolor[c(2,4, 1)],
+xlab="Years since enrolment", ylab="Cumulative transition-specific intensity")
+
+```
+
+### Flexsurvreg
+
+A special mention about flexsurvreg that this fits standard parametric survival models and does not include splines, as covered in the first lecture for [flexible parametric survival](Flexible1.qmd).
+
+We are also able to fit these models, under the same basis as covered above, and compare these to select best model fit. There is more functionality in flexsurv to produce subsequent outputs of interest, such as total length of stay in particular states over time and transition probability matrix.
+
+```{r}
+#Standard parametric survival using Weibull
+msm_alive_recur_para <- flexsurvreg(Surv(Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==1), dist="weibull")
+msm_alive_recur_para
+
+msm_alive_death_para <- flexsurvreg(Surv(Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==2), dist="weibull")
+msm_alive_death_para
+
+msm_recur_death_para <-flexsurvreg(Surv(Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==3), dist="weibull")
+msm_recur_death_para
+```
+
+We see that the treatment effect does suggest longer time until recurrence (TR: 2.12, 95%CI: 1.59, 2.84), but does not affect the time until death either from disease-free state (TR: 0.96, 95%CI: 0.53, 1.74) or the recurrence state (TR: 0.94, 95%CI: 0.81, 1.11). This is consistent with our findings from above models.
+
+
+```{r}
+
+predict(msm_alive_recur, newdata=msm_preddata, type="survival", times=c(0,1,2))
+
+msm_preddata <- data.frame(
+  trt = c(0,1),
+  extent = c(0,0),
+  node4 = c(0,0)
+)
+
+msm_alive_recur <- flexsurvspline(Surv(Tstop, status) ~ trt+age10+male+extent+node4, data=cdata_long, subset=(trans==1), k=2, scale="hazard")
+msm_alive_recur
+
+msm_alive_death <- flexsurvspline(Surv(Tstop, status) ~ trt+age10+male+extent+node4, data=cdata_long, subset=(trans==2), k=2, scale="hazard")
+msm_alive_death
+
+msm_recur_death <- flexsurvspline(Surv(Tstop, status) ~ trt+age10+male+extent+node4, data=cdata_long, subset=(trans==3), k=2, scale="hazard")
+msm_recur_death
+bexp.list <- vector(3, mode="list")
+bexp.list[[1]] <- msm_alive_recur
+bexp.list[[2]] <- msm_alive_death
+bexp.list[[3]] <- msm_recur_death
+
+
+test <- flexsurvspline(Surv(Tstop, status) ~ trans+gamma1(trans), data=cdata_long, k=3)
+
+cdata_long$trans <- as.factor(cdata_long$trans)
+
+
+
+# Predicted probability in state from the MSH model
+fmsm_prob <- survfit(msm_alive_recur, newdata=msm_preddata) # 16 predicted curves
+
+#Expected time to final state
+simfmsm <- simfinal_fmsm(msm_alltrans, newdata = msm_preddata, probs = c(0.25, 0.5, 0.75), t=5, M=100)
+
+#Probability of final states 
+probfmsm <- pfinal_fmsm(msm_alltrans, fromstate="State 1", newdata=msm_preddata, maxt=1)
+
+#Compute transition specific hazard estimates
+msf <- msfit(msm_alltrans, newdata=msm_preddata, trans=tmat)
+
+#Final probability states and expected time
+
+
+
+#Probability in state
+prob.msm <- probtrans(msm_alltrans, predt=0)
+
+#Expected time in each state
+msm_preddata <- data.frame(
+  trt = c(0,1),
+  extent = c(0,0),
+  node4 = c(0,0)
+)
+
+```
+
+
+## Practical exercises
+
+Put here

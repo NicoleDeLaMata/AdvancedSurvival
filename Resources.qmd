@@ -1,0 +1,31 @@
+---
+title: "Resources"
+format: 
+  html:
+    embed-resources: true
+toc: true
+toc-depth: 3
+---
+
+## Recommended readings
+
+De La Mata, N. L., Khou, V., Hedley, J. A., Kelly, P. J., Morton, R. L., Wyburn, K., Webster, A. C. (2024). Journey to kidney transplantation: patient dynamics, suspensions, transplantation and deaths in the Australian kidney transplant waitlist. Nephrology Dialysis Transplantation, 39(7), 1138-1149. https://doi.org/10.1093/ndt/gfad253 
+
+Le-Rademacher, J. G., Therneau, T. M., & Ou, F. S. (2022). The Utility of Multistate Models: A Flexible Framework for Time-to-Event Data. Current epidemiology reports, 9(3), 183–189. https://doi.org/10.1007/s40471-022-00291-y
+
+Jackson, C. (2016). Flexsurv: a platform for parametric survival modeling in R. Journal of Statistical Software, 70(8), 1–33. https://doi.org/10.18637/jss.v070.i08
+
+Jackson, C. H. (2025). Flexible parametric multi-state modelling with flexsurv. MRC Biostatistics Unit. Available from: https://cran.r-project.org/web/packages/flexsurv/vignettes/multistate.pdf
+
+Therneau, T., Crowson, C., & Atkinson, E. (2020). Multi-state models and competing risks. CRAN-R (https://cran. r-project. org/web/packages/survival/vignettes/compete. pdf).
+
+Therneau, T. M., & Ou, F.-S. (2024). Using multistate models with clinical trial data for a deeper understanding of complex disease processes. Clinical Trials, 21(5), 531–540. https://doi.org/10.1177/17407745241267862
+
+
+## Recommended textbooks
+
+Andersen, P. K. (2023). Models for Multi-State Survival Data: Rates, Risks, and Pseudo-Values (H. Ravn, Ed.; First edition, Vol. 1). CRC Press. https://doi.org/10.1201/9780429029684
+
+Beyersmann, J., Allignol, A., & Schumacher, M. (2012). Competing Risks and Multistate Models with R (1st ed. 2012.). Springer New York. https://doi.org/10.1007/978-1-4614-2035-4
+
+Legrand, C. (2021). Advanced survival models (First edition.). CRC Press. https://www.taylorfrancis.com/books/9780429054167

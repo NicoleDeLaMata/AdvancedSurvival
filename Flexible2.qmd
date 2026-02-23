@@ -1,0 +1,26 @@
+---
+title: "2 Flexible parametric survival"
+format: 
+  html:
+    embed-resources: true
+    code-overflow: wrap
+toc: true
+toc-depth: 3
+---
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+## Learning objectives
+
+::: callout-note
+By the end of this lecture, you should be able to:
+
+-   Apply understanding of **flexible parametric survival models** and **competing risks approaches**
+-   Use **cause-specific approach** to fit flexible parametric survival models
+-   Interpret **transition-specific hazard ratios** for covariate effects
+:::
