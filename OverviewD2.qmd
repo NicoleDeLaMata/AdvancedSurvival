@@ -25,7 +25,7 @@ We are building upon the advanced survival concepts and analysis we have covered
 
 ## By the end of today
 
-We would expect you to have a working understanding of:
+Have a read of [Day 2 wrap-up](WrapupD2.qmd). We would expect you to have a working understanding of:
 
 -   Competing risks scenarios and modelling approaches
 

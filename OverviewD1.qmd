@@ -41,7 +41,7 @@ This includes a basic understanding of:
 
 ## By the end of today
 
-We would expect you to have a working understanding of:
+Have a read of [Day 1 wrap-up](WrapupD1.qmd). We would expect you to have a working understanding of:
 
 -   Recognising when proportional hazards (PH) assumption is violated and different strategies to handle non-PH.
 

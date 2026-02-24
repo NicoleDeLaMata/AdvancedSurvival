@@ -28,4 +28,8 @@ Andersen, P. K. (2023). Models for Multi-State Survival Data: Rates, Risks, and 
 
 Beyersmann, J., Allignol, A., & Schumacher, M. (2012). Competing Risks and Multistate Models with R (1st ed. 2012.). Springer New York. https://doi.org/10.1007/978-1-4614-2035-4
 
+Kleinbaum, D. G., & Klein, M. (2012). Survival Analysis: A Self-Learning Text (3rd ed.). Springer.
+
 Legrand, C. (2021). Advanced survival models (First edition.). CRC Press. https://www.taylorfrancis.com/books/9780429054167
+
+Pintilie, M. (2006). Competing Risks: A Practical Perspective. John Wiley & Sons.

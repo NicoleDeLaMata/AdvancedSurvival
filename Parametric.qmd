@@ -15,6 +15,30 @@ knitr::opts_chunk$set(
 )
 ```
 
+## Learning objectives
+
+::: callout-note
+By the end of this lecture, you should be able to:
+
+- Define a **parametric survival model** and explain the fundamental trade-off between 
+parametric and non-parametric/semi-parametric models.
+- Understand and evaluate the **key advantages** of parametric models
+- Differentiate between **common survival distributions** and identify when to use them
+- Compare and contrast the two primary modelling frameworks: **Proportional Hazards (PH)**
+and **Accelerated Failure Time (AFT)**
+- Interpret model parameters from R output (`flexsurv` and `survival` packages), 
+including converting raw coefficients into meaningful measures like **Hazard Ratios (HR)**, 
+**Time Ratios (TR)**, and **Survival Odds Ratios (SOR)**.
+- Validate **model assumptions** using graphical techniques
+- Execute formal **model selection procedures**, applying Likelihood Ratio Test 
+(LRT) and AIC/BIC, as appropriate, to identify the most parsimonious and well-fitting 
+distribution.
+- Implement **advanced modelling techniques**, such as fitting Generalised Gamma models 
+to evaluate simpler nested distributions or allowing ancillary parameters 
+to vary by treatment group.
+  
+:::
+
 ## What is a parametric survival model?
 
 A **parametric survival model** is one in which the survival time, $T$, is assumed 

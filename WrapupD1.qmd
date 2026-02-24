@@ -1,0 +1,102 @@
+---
+title: "Day 1: Wrap-up"
+format: 
+  html:
+    embed-resources: true
+toc: true
+toc-depth: 3
+---
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+## Beyond the standard Cox model
+
+Today’s sessions explored the options available when the standard semi-parametric assumptions are no longer sufficient for our research goals. We addressed four primary questions:
+
+1.  What are our options if Cox Proportional Hazards (PH) assumption is violated?
+
+2.  How can joint modelling improve upon standard Cox modelling for time-varying covariates?
+
+3.  How can parametric survival models complement Cox modelling (estimating the baseline hazard)?
+
+4.  How can flexible parametric survival models bridge the gap between standard parametric models and semi-parametric Cox model?
+
+------------------------------------------------------------------------
+
+## 1. When the 'Standard' Cox Model is Not Enough
+
+While the Cox model is robust because it does not require specifying the baseline hazard, its validity relies heavily on the **proportional hazards (PH) assumption** — the requirement that hazards remain constant over time.
+
+### Strategies for PH Violation
+
+When proportionality fails, we have several structural alternatives:
+
+-   **Stratification:** Useful when a categorical variable (e.g., donor type) strongly affects risk, but you do not need to report its explicit hazard ratio
+
+-   **Time-Varying Effects:** Essential when the *impact* of a covariate (e.g., treatment) changes over follow-up.
+
+-   **Extended Cox Model:** Necessary when a covariate’s actual *value* changes over time
+
+------------------------------------------------------------------------
+
+## 2. Beyond External Predictors with Joint Modelling
+
+Standard survival models assume that time-varying covariates are "external". However, in clinical research, many biomarkers (like eGFR) are **internal** — they predict the event (graft failure) while simultaneously being affected by the disease process itself.
+
+### Benefits of Joint Models
+
+**Joint models** reduce bias by simultaneously modelling the longitudinal trajectory (e.g., linear mixed-effects model for eGFR) and the time-to-event outcome (e.g., Cox model for graft failure)
+
+-   **Addresses bias from internal time-dependent covariates:** Explicitly accounts for the feedback loop between the biomarker and the event.
+
+-   **Measurement Error:** Accounts for the inherent noise in repeated measurements
+
+-   **Precision:** Leads to improved statistical precision and more efficient inference
+
+------------------------------------------------------------------------
+
+## 3. Beyond the Hazard Ratio with parametric Models
+
+-   The **unspecified baseline hazard** in a Cox model is a "double-edged sword". It avoids wrong assumptions about the shape of risk, but it prevents us from calculating **absolute risks**.
+
+-   Parametric models fully specify the hazard and survival functions, including the baseline hazard, and therefore they allow for the estimation of **absolute risks** and the ability to **extrapolate** survival beyond the observed data
+
+-   It is very important to make sure that the **distributional assumptions** hold — if they do, parametric models offer improved precision compared to semi-parametric models.
+
+------------------------------------------------------------------------
+
+## 4. Flexible Parametric Models: The Best of Both Worlds
+
+-   Flexible parametric models (such as the Royston-Parmar model) provide the **flexibility** of a Cox model combined with the **analytical power** of parametric models
+
+    -   They provide hazard ratios while also allowing for absolute risk measures and extrapolation
+
+-   By using (restricted cubic) splines, these models can capture complex, non-monotonic hazard functions
+
+-   If the PH assumption is violated, time-dependent effects can be easily integrated into the spline framework
+
+------------------------------------------------------------------------
+
+## Summary Comparison
+
+| Model Type | Best Used When... | Key Advantage |
+|:-----------------------|:-----------------------|:-----------------------|
+| **Stratified Cox** | PH is violated for a non-primary covariate | No baseline assumption needed |
+| **Joint Model** | Dealing with internal biomarkers like eGFR | Accounts for measurement error and feedback |
+| **Parametric** | Absolute risks or extrapolation are required | Continuous, smooth hazard functions |
+| **Flexible Parametric** | Hazards are complex or PH assumption fails | Bridges the gap between Cox and Parametric |
+
+------------------------------------------------------------------------
+
+## Tomorrow: Beyond binary outcomes
+
+-   What if people are removed from the risk set due to reasons other than the event of interest or uninformative censoring (**competing risks**)?
+
+-   How can **flexible parametric approaches** improve standard modelling of competing risks?
+
+-   What if people experience **semi-competing risks** or **intermediate events** that do not preclude the primary event but may change the risk of the primary event (**multi-state modelling**)?

@@ -1,0 +1,63 @@
+---
+title: "Day 2: Wrap-up"
+format: 
+  html:
+    embed-resources: true
+toc: true
+toc-depth: 3
+---
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+## Beyond single-endpoint survival analysis
+
+Today's sessions focused on moving beyond binary outcomes and single-endpoint survival analysis. We explored:
+
+1.  How to handle **competing events** that prevent our primary event of interest?
+
+2.  How can we use **flexible parametric approaches** to improve standard modelling of competing risks?
+
+3.  How to model the entire journey of a person through multiple health states?
+
+------------------------------------------------------------------------
+
+## 1. Competing Risks: Diverging Paths
+
+**Competing risk** is any event that biologically or logically **precludes** the occurrence of the primary event of interest - observation is thus **complete** and the competing event is **informative** regarding the event of interest.
+
+### Key Analytical Approaches
+
+-   **Cause-specific hazards:** Used for etiological research to understand the biological risk of an event
+-   **Sub-distribution hazards (Fine-Gray model):** Provides the "real-world" probability of an event
+
+Crucially, in the latter approach, individuals who experience a competing event **remain in the risk set**, preventing the overestimation bias typical of the Kaplan-Meier estimator in this context.
+
+------------------------------------------------------------------------
+
+## 2. Flexible parametric approaches to competing risks
+
+-   Different competing risks can have vastly different hazard shapes
+
+-   **Flexible parametric approaches** can be applied to the analysis of competing risks
+
+-   A flexible parametric model can be fit for each competing event separately
+
+-   Each competing risk can have its own complexity (different number of knots) and its own time-dependent effects, allowing for non-proportionality
+
+------------------------------------------------------------------------
+
+## 3. Multi-state models: The patient journey
+
+Multi-state models allow us to model complex disease pathways where individuals move through various intermediate states before reaching a terminal event. They can thus be considered an extension of competing risk models, allowing us to account also for semi-competing risks or intermediate events that may change the risk of the terminal event but do not preclude it.
+
+Core concepts:
+
+-   **Transition Intensities:** The instantaneous rates of moving between states (the "speedometer")
+-   **Transition Probabilities:** The likelihood of being in a specific state at a future time (the "odometer")
+
+People can also move back and forth between states (recurrent events).
