@@ -6,6 +6,7 @@ format:
     code-overflow: wrap
 toc: true
 toc-depth: 3
+bibliography: references.bib
 ---
 
 ```{r, echo=FALSE}
@@ -402,7 +403,7 @@ lwd=2, lty=1:2, col=mycolor[c(2,2,4,4,1,1)], bty='n')
 
 The estimated probability in state conincides with patterns we saw in the cumulative hazard. Probability for death increases over time, resulting in lower probability of being alive without recurrence. Further, we see the probability of recurrence peaks in the first two years (where the cumulative hazard rapidly increases), before reducing over time.
 
-Producing the expected time in state also can call upon these output from *survfit()*. We can also add more covariates to see how the expected mean time changes.
+Producing the expected time in state also can call upon these output from survfit(). We can also add more covariates to see how the expected mean time changes.
 
 ```{r}
 #Expected time in state
@@ -429,6 +430,7 @@ data=cdata, id=id)
 print(cfit, digits=2)
 summary(cfit)
 ```
+
 The multivariate model allows us to assess the covariate effects on the transitions. For example, the treatment effect from transition 1 (Disease-free) to 2 (Recurrence) has HR estimate of 0.60 (95%CI: 0.49, 0.74) and for transition 2 (Recurrence) to 3 (Death) has HR estimate of 1.33 (95%CI: 1.06, 1.68).
 
 We can create a forest plot of the HR estimates and their 95%CI.
@@ -460,7 +462,6 @@ We can run similar checks on the Cox proportional hazards model, such as the pro
 ph_test <- cox.zph(cfit)
 ph_test
 ```
-
 
 We can use this model to produce predicted probability in state and expected time in state. For this example, we have simplified the model to replicate the barplot in the paper. However, you can create your own combinations for the covariates.
 
@@ -506,9 +507,9 @@ las=1)
 abline(h=c(4.9, 9.7,14.5), lwd=2, col=mycolor[3])
 ```
 
-### Multistate data wrangling with mstate
+### mstate package
 
-We can also use the mstate package and to produce similar non-parametric estimates (i.e. cumulative hazard and probability in state) and subsequent functionality with flexsurv.
+We can also use the mstate package and to produce similar non-parametric estimates (i.e. cumulative hazard and probability in state) and subsequent functionality with flexsurv and coxph.
 
 First we will create the transition matrix, which assigns a consecutive number to each of the transitions and list the element where the transition exists in each row of the matrix. This functions differently to the above, which was mostly aesthetic and to understand the data layout.
 
@@ -553,6 +554,9 @@ Let's now fit Cox model without any covariates, so we define a baseline hazards 
 #Convert time to years since enrolment
 cdata_long$Tstart <- cdata_long$Tstart/365.25
 cdata_long$Tstop <- cdata_long$Tstop/365.25
+cdata_long$age10 <- cdata_long$age/10 # age in decades
+cdata_long$male <- 1*(cdata_long$sex ==1) # 0/1: male
+cdata_long$trt <- 1*(cdata_long$rx == "Lev+5FU")
 
 #Fit Cox model with separate baseline hazards for each transition
 cfit_mstate <- coxph(Surv(Tstart, Tstop, status) ~ strata(trans),
@@ -594,12 +598,198 @@ legend(4,1,
 
 ```
 
-WHAT ELSE CAN WE DO WITH MSTATE - FIT COX MODELS WITH COVARIATES. BUT IT DOESNT GIVE TRANSITION SPECIFIC EFFECTS?
+Now, the above has fitted the transitions using the strata() option and specifying the trans produced in the msprep. Fitting trans in a stratum means the covariate effects are assumed to be common amongst the transitions. This may or may not reflect the reality or what you'd like to produce findings on. We will now describe how we can fit transition-specific covariates.
+
+```{r}
+#Expand covariates to fit transition-specific covariates
+covs <- c("trt", "age10", "male", "extent", "node4")
+cdata_long_exp <- expand.covs(cdata_long, covs, longnames=FALSE)
+
+#Fit cox model with transition specific covariat
+cfit_tspec_strata <- coxph(Surv(Tstart, Tstop, status) ~ trt.1 + trt.2 + trt.3 + age10.1 + age10.2 + age10.3 + male.1 + male.2 + male.3 + extent.1 + extent.2 + extent.3 + node4.1 + node4.2 + node4.3 + strata(trans),
+data=cdata_long_exp, id=id)
+summary(cfit_tspec_strata)
+
+```
+
+These coefficient estimates are nearly exactly the same as produced by the coxph() above when state was specified in the Surv() function. 
+
+From the output, we can produce the cumulative hazard against covariate patterns. In this case, we focus on the treatment effect and plot these.
+
+```{r}
+#Newdata to predict on - ref levels
+newdata_tspec0 <- data.frame(
+  trans=1:3,
+  strata=1:3,
+  trt.1 = c(0,0,0),
+  age10.1=c(4,4,4),
+  male.1=c(0,0,0),
+  extent.1 = c(0,0,0),
+  node4.1 = c(0,0,0),
+  trt.2 = c(0,0,0),
+  age10.2=c(4,4,4),
+  male.2=c(0,0,0),
+  extent.2 = c(0,0,0),
+  node4.2 = c(0,0,0),
+  trt.3 = c(0,0,0),
+  age10.3=c(4,4,4),
+  male.3=c(0,0,0),
+  extent.3 = c(0,0,0),
+  node4.3 = c(0,0,0))  
+  
+#Cumulative hazards - ref levels
+msfit_tspec_trt0 <- msfit(cfit_tspec_strata, trans=tmat, newdata=newdata_tspec0)
+
+#Newdata to predict on - trt effect
+newdata_tspec1 <- data.frame(
+  trans=1:3,
+  strata=1:3,
+  trt.1 = c(1,0,0),
+  age10.1=c(4,4,4),
+  male.1=c(0,0,0),
+  extent.1 = c(0,0,0),
+  node4.1 = c(0,0,0),
+  trt.2 = c(0,1,0),
+  age10.2=c(4,4,4),
+  male.2=c(0,0,0),
+  extent.2 = c(0,0,0),
+  node4.2 = c(0,0,0),
+  trt.3 = c(0,0,1),
+  age10.3=c(4,4,4),
+  male.3=c(0,0,0),
+  extent.3 = c(0,0,0),
+  node4.3 = c(0,0,0))  
+  
+#Cumulative hazards - ref levels
+msfit_tspec_trt1 <- msfit(cfit_tspec_strata, trans=tmat, newdata=newdata_tspec1)
+
+#Store data into one
+df1 <- msfit_tspec_trt0$Haz %>% mutate(model = "Control")
+df2 <- msfit_tspec_trt1$Haz %>% mutate(model = "Treatment")
+
+df_all <- bind_rows(df1, df2)
+df_all <- df_all %>% 
+  mutate(trans2 = case_when(
+    trans==1 ~ "Alive to recur",
+    trans==2 ~ "Alive to death",
+    trans==3 ~ "Recur to death"
+  ))
+
+#Graph settings
+mycolor <- c("#440154FF","#32648EFF","#21908CFF","#5DC863FF","#DCE318FF","#FFFFFF")
+
+#Plot of cumulative hazards
+#| fig-width: 2
+#| fig-height: 3
+ggplot(df_all,
+       aes(x = time,
+           y = Haz,
+           colour = factor(trans2),
+           linetype = model,
+           group = interaction(trans2, model))) +
+  geom_line(size = 1) +
+  scale_colour_manual(values = mycolor[c(2,4, 1)],
+                      name = "Transition") +
+  scale_linetype_manual(values = c("solid", "dashed"),
+                        name = " ") +
+  labs(x = "Years since enrolment", y = "Cumulative hazard") +
+  theme_minimal()
+```
+
+
+In theory, we can also produce the probability in state from the msfit object. However, we see this is problematic in our scenario as we are warned about negatives. Checking the output, we do see negative values have occurred in the probability in state - which is not expected. This has occurred from incorrectly derived cumulative hazard, so is very problematic and may have arisen from too many parameters with too few events.
+
+Once we simplify the model, we produce probability estimates without issue.
+
+```{r}
+#Probabilities in state
+pr_trt0 <- probtrans(msfit_tspec_trt0, predt = 0, variance=FALSE)
+pr_trt1 <- probtrans(msfit_tspec_trt1, predt = 0, variance=FALSE)
+
+#Check output for from entry to recur
+pr_trt0[[1]]
+pr_trt1[[1]]
+
+#Simplify the model
+cfit_tspec_strata_red <- coxph(Surv(Tstart, Tstop, status) ~ trt.1 + trt.2 + trt.3 + strata(trans),
+data=cdata_long_exp, id=id)
+summary(cfit_tspec_strata_red)
+
+#Newdata to predict on - ref levels
+newdata_tspec0_red <- data.frame(
+  trans=1:3,
+  strata=1:3,
+  trt.1 = c(0,0,0),
+  trt.2 = c(0,0,0),
+  trt.3 = c(0,0,0))  
+  
+#Cumulative hazards - ref levels
+msfit_tspec_trt0_red <- msfit(cfit_tspec_strata_red, trans=tmat, newdata=newdata_tspec0_red)
+
+#Newdata to predict on - trt effect
+newdata_tspec1_red <- data.frame(
+  trans=1:3,
+  strata=1:3,
+  trt.1 = c(1,0,0),
+  trt.2 = c(0,1,0),
+  trt.3 = c(0,0,1))  
+  
+#Cumulative hazards - ref levels
+msfit_tspec_trt1_red <- msfit(cfit_tspec_strata_red, trans=tmat, newdata=newdata_tspec1_red)
+
+#Probabilities in state
+pr_trt0_red <- probtrans(msfit_tspec_trt0_red, predt = 0, variance=FALSE)
+pr_trt1_red <- probtrans(msfit_tspec_trt1_red, predt = 0, variance=FALSE)
+
+#Check output for from entry to recur
+pr_trt0_red[[1]]
+pr_trt1_red[[1]]
+
+#Store data into one
+pr1 <- pr_trt0_red[[1]] %>% mutate(model = "Control")
+pr2 <- pr_trt1_red[[1]] %>% mutate(model = "Treatment")
+
+#Plot of probabilities in state
+#| fig-width: 2
+#| fig-height: 3
+matplot(pr1$time,
+        pr1[, grep("^pstate", names(pr1))],
+        type = "l",
+        lwd  = 2,
+        lty  = 1,
+        xlab = "Years from enrolment",
+        ylab = "Probability in state",
+        col  = mycolor[c(2,4, 1)])
+
+matlines(pr2$time,
+         pr2[, grep("^pstate", names(pr2))],
+         type = "l",
+         lwd  = 2,
+         lty  = 2,
+         col  = mycolor[c(2,4, 1)])
+
+# legend for states (colours)
+legend("topright",
+       legend = c("Alive w/o recurrence", "Recurrence", "Death"),
+       col    = mycolor[c(2,4, 1)],
+       lty    = 1,
+       lwd    = 2,
+       bty    = "n")
+
+# legend for models (linetypes)
+legend("top",
+       legend = c("Control", "Treatment"),
+       lty    = c(1, 2),
+       lwd    = 2,
+       col    = "black",
+       bty    = "n")
+
+```
 
 
 ### Flexible parametric 'cause specific' survival model
 
-Let's move onto how we can fit flexible parametric survival models for multi-state approach. 
+Let's move onto how we can fit flexible parametric survival models for multi-state approach.
 
 ```{r}
 #Treatment variable
@@ -608,18 +798,18 @@ cdata_long$age10 <- cdata_long$age/10 # age in decades
 cdata_long$male <- 1*(cdata_long$sex ==1) # 0/1: male
 
 
-#Fit separate models for each transition - as given by output from mstate
-msm_alive_recur <- flexsurvspline(Surv(Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==1), k=2, scale="hazard")
+#Fit separate models for each transition - as given by msprep
+msm_alive_recur <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==1), k=0, scale="hazard")
 msm_alive_recur
 
-msm_alive_death <- flexsurvspline(Surv(Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==2), k=2, scale="hazard")
+msm_alive_death <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==2), k=0, scale="hazard")
 msm_alive_death
 
-msm_recur_death <- flexsurvspline(Surv(Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==3), k=2, scale="hazard")
+msm_recur_death <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==3), k=0, scale="hazard")
 msm_recur_death
 ```
 
-We have fitted a separate model for each transition, using the subset option, and each has 2 internal knots. We can use the above to determine the covariate effects for each transition. 
+We have fitted a separate model for each transition, using the subset option, and each has 2 internal knots. We can use the above to determine the covariate effects for each transition.
 
 We see that the treatment does reduce hazard of recurrence (HR: 0.60, 95%CI: 0.49, 0.74), but does not affect the hazard of death either from disease-free state (HR: 1.03, 0.53, 1.99) or the recurrence state (HR: 1.07, 95%CI: 0.86, 1.35).
 
@@ -642,8 +832,8 @@ We are now able to use the entire transition model to produce other relevant est
 
 ```{r}
 
-#New data to estimate on
-msm_preddata <- data.frame(
+#New data to estimate on - ref level
+msm_preddata0 <- data.frame(
   trt = c(0),
   age10=c(4),
   male=c(0),
@@ -651,17 +841,123 @@ msm_preddata <- data.frame(
   node4 = c(0)
 )
 
-#Cumulative intensity function
-cum_trans<- msfit.flexsurvreg(msm_alltrans, t=seq(0,5,by=0.2), newdata=msm_preddata, trans=tmat_flexsurv)
+#Cumulative intensity function - control
+cum_trans0<- msfit.flexsurvreg(msm_alltrans, t=seq(0,5,by=0.2), newdata=msm_preddata0, trans=tmat_flexsurv)
 
-#Graph settings
-mycolor <- c("#440154FF","#32648EFF","#21908CFF","#5DC863FF","#DCE318FF","#FFFFFF")
+#New data to estimate on - treatment
+msm_preddata1 <- data.frame(
+  trt = c(1),
+  age10=c(4),
+  male=c(0),
+  extent = c(0),
+  node4 = c(0)
+)
 
-#Plot over time
+#Cumulative intensity function - treatment
+cum_trans1<- msfit.flexsurvreg(msm_alltrans, t=seq(0,5,by=0.2), newdata=msm_preddata1, trans=tmat_flexsurv)
+
+#Store data into one
+ct1 <- cum_trans0$Haz %>% mutate(model = "Control")
+ct2 <- cum_trans1$Haz %>% mutate(model = "Treatment")
+
+ct_all <- bind_rows(ct1, ct2)
+ct_all <- ct_all %>% 
+  mutate(trans2 = case_when(
+    trans==1 ~ "Alive to recur",
+    trans==2 ~ "Alive to death",
+    trans==3 ~ "Recur to death"
+  ))
+
+#Plot - stepped
 #| fig-width: 2
 #| fig-height: 3
-plot(cum_trans, lwd=2, col=mycolor[c(2,4, 1)],
-xlab="Years since enrolment", ylab="Cumulative transition-specific intensity")
+ggplot(ct_all,
+       aes(x = time,
+           y = Haz,
+           colour = factor(trans2),
+           linetype = model,
+           group = interaction(trans2, model))) +
+  geom_step(size = 1) +
+  scale_colour_manual(values = mycolor[c(2,4, 1)],
+                      name = "Transition") +
+  scale_linetype_manual(values = c("solid", "dashed"),
+                        name = " ") +
+  labs(x = "Years since enrolment", y = "Cumulative hazard") +
+  theme_minimal()
+
+#Plot - smoothed line
+#| fig-width: 2
+#| fig-height: 3
+ggplot(ct_all,
+       aes(x = time,
+           y = Haz,
+           colour = factor(trans2),
+           linetype = model,
+           group = interaction(trans2, model))) +
+  geom_line(size = 1) +
+  scale_colour_manual(values = mycolor[c(2,4, 1)],
+                      name = "Transition") +
+  scale_linetype_manual(values = c("solid", "dashed"),
+                        name = " ") +
+  labs(x = "Years since enrolment", y = "Cumulative hazard") +
+  theme_minimal()
+
+
+```
+
+From the output of msfit.flexsurvreg(), we can then estimate the probability in state using mstate package.
+
+```{r}
+#Probability in state - control
+prob_instate0 <- probtrans(cum_trans0, predt=0, direction="forward")
+
+#Probability in state - treatment
+prob_instate1 <- probtrans(cum_trans1, predt=0, direction="forward")
+
+#Check output for from entry to recur
+prob_instate0[[1]]
+prob_instate1[[1]]
+
+#Store data into one
+pr_is1 <- prob_instate0[[1]] %>% mutate(model = "Control")
+pr_is2 <- prob_instate1[[1]] %>% mutate(model = "Treatment")
+
+#Plot of probabilities in state
+#| fig-width: 2
+#| fig-height: 3
+matplot(pr_is1$time,
+        pr_is1[, grep("^pstate", names(pr1))],
+        type = "l",
+        lwd  = 2,
+        lty  = 1,
+        xlab = "Years from enrolment",
+        ylab = "Probability in state",
+        col  = mycolor[c(2,4, 1)])
+
+matlines(pr_is2$time,
+         pr_is2[, grep("^pstate", names(pr2))],
+         type = "l",
+         lwd  = 2,
+         lty  = 2,
+         col  = mycolor[c(2,4, 1)])
+
+# legend for states (colours)
+legend("right",
+       legend = c("Alive w/o recurrence", "Recurrence", "Death"),
+       col    = mycolor[c(2,4, 1)],
+       lty    = 1,
+       lwd    = 2,
+       bty    = "n")
+
+# legend for models (linetypes)
+legend(3.25,0.35,
+       legend = c("Control", "Treatment"),
+       lty    = c(1, 2),
+       lwd    = 2,
+       col    = "black",
+       bty    = "n")
+
+
 
 ```
 
@@ -673,78 +969,128 @@ We are also able to fit these models, under the same basis as covered above, and
 
 ```{r}
 #Standard parametric survival using Weibull
-msm_alive_recur_para <- flexsurvreg(Surv(Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==1), dist="weibull")
+msm_alive_recur_para <- flexsurvreg(Surv(Tstart, Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==1), dist="weibull")
 msm_alive_recur_para
 
-msm_alive_death_para <- flexsurvreg(Surv(Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==2), dist="weibull")
+msm_alive_death_para <- flexsurvreg(Surv(Tstart, Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==2), dist="weibull")
 msm_alive_death_para
 
-msm_recur_death_para <-flexsurvreg(Surv(Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==3), dist="weibull")
+msm_recur_death_para <-flexsurvreg(Surv(Tstart, Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==3), dist="weibull")
 msm_recur_death_para
 ```
 
-We see that the treatment effect does suggest longer time until recurrence (TR: 2.12, 95%CI: 1.59, 2.84), but does not affect the time until death either from disease-free state (TR: 0.96, 95%CI: 0.53, 1.74) or the recurrence state (TR: 0.94, 95%CI: 0.81, 1.11). This is consistent with our findings from above models.
+We see that the treatment effect does suggest longer time until recurrence (TR: 2.12, 95%CI: 1.59, 2.84) and shorter time until recurrence state (TR: 0.64, 95%CI: 0.45, 0.91), but does not affect the time until death from disease-free state (TR: 0.96, 95%CI: 0.53, 1.74). This is consistent with our findings from above models.
 
+See below similar coding to above to produce the cumulative hazard and probability in state using these parametric survival models.
 
 ```{r}
-
-predict(msm_alive_recur, newdata=msm_preddata, type="survival", times=c(0,1,2))
-
-msm_preddata <- data.frame(
-  trt = c(0,1),
-  extent = c(0,0),
-  node4 = c(0,0)
-)
-
-msm_alive_recur <- flexsurvspline(Surv(Tstop, status) ~ trt+age10+male+extent+node4, data=cdata_long, subset=(trans==1), k=2, scale="hazard")
-msm_alive_recur
-
-msm_alive_death <- flexsurvspline(Surv(Tstop, status) ~ trt+age10+male+extent+node4, data=cdata_long, subset=(trans==2), k=2, scale="hazard")
-msm_alive_death
-
-msm_recur_death <- flexsurvspline(Surv(Tstop, status) ~ trt+age10+male+extent+node4, data=cdata_long, subset=(trans==3), k=2, scale="hazard")
-msm_recur_death
+#Create list of transition models
 bexp.list <- vector(3, mode="list")
-bexp.list[[1]] <- msm_alive_recur
-bexp.list[[2]] <- msm_alive_death
-bexp.list[[3]] <- msm_recur_death
+bexp.list[[1]] <- msm_alive_recur_para
+bexp.list[[2]] <- msm_alive_death_para
+bexp.list[[3]] <- msm_recur_death_para
+
+#Newdata to predict on - control
+newdata_prob0 <- data.frame(
+  trt = c(0),
+  age10=c(4),
+  male=c(0),
+  extent = c(0),
+  node4 = c(0)
+)  
+
+#Newdata to predict on - treatment
+newdata_prob1 <- data.frame(
+  trt = c(1),
+  age10=c(4),
+  male=c(0),
+  extent = c(0),
+  node4 = c(0)
+)  
+
+#Cumulative transition specific hazard function - control
+cum_thaz0 <- msfit.flexsurvreg(bexp.list, t=seq(0,5,by=0.2), newdata=newdata_prob0, trans=tmat_flexsurv)
+
+#Cumulative transition specific hazard function - treatment
+cum_thaz1 <- msfit.flexsurvreg(bexp.list, t=seq(0,5,by=0.2), newdata=newdata_prob1, trans=tmat_flexsurv)
+
+#Store data into one
+cth1 <- cum_thaz0$Haz %>% mutate(model = "Control")
+cth2 <- cum_thaz1$Haz %>% mutate(model = "Treatment")
+
+cth_all <- bind_rows(cth1, cth2)
+cth_all <- cth_all %>% 
+  mutate(trans2 = case_when(
+    trans==1 ~ "Alive to recur",
+    trans==2 ~ "Alive to death",
+    trans==3 ~ "Recur to death"
+  ))
 
 
-test <- flexsurvspline(Surv(Tstop, status) ~ trans+gamma1(trans), data=cdata_long, k=3)
+#Plot - smoothed line
+#| fig-width: 2
+#| fig-height: 3
+ggplot(cth_all,
+       aes(x = time,
+           y = Haz,
+           colour = factor(trans2),
+           linetype = model,
+           group = interaction(trans2, model))) +
+  geom_line(size = 1) +
+  scale_colour_manual(values = mycolor[c(2,4, 1)],
+                      name = "Transition") +
+  scale_linetype_manual(values = c("solid", "dashed"),
+                        name = " ") +
+  labs(x = "Years since enrolment", y = "Cumulative hazard") +
+  theme_minimal()
 
-cdata_long$trans <- as.factor(cdata_long$trans)
+#Probability in state - control
+prob_para0 <- probtrans(cum_thaz0, predt=0, direction="forward")
 
+#Probability in state - treatment
+prob_para1 <- probtrans(cum_thaz1, predt=0, direction="forward")
 
+#Check output for from entry to recur
+prob_para0[[1]]
+prob_para1[[1]]
 
-# Predicted probability in state from the MSH model
-fmsm_prob <- survfit(msm_alive_recur, newdata=msm_preddata) # 16 predicted curves
+#Store data into one
+pr_th1 <- prob_para0[[1]] %>% mutate(model = "Control")
+pr_th2 <- prob_para1[[1]] %>% mutate(model = "Treatment")
 
-#Expected time to final state
-simfmsm <- simfinal_fmsm(msm_alltrans, newdata = msm_preddata, probs = c(0.25, 0.5, 0.75), t=5, M=100)
+#Plot of probabilities in state
+#| fig-width: 2
+#| fig-height: 3
+matplot(pr_th1$time,
+        pr_th1[, grep("^pstate", names(pr1))],
+        type = "l",
+        lwd  = 2,
+        lty  = 1,
+        xlab = "Years from enrolment",
+        ylab = "Probability in state",
+        col  = mycolor[c(2,4, 1)])
 
-#Probability of final states 
-probfmsm <- pfinal_fmsm(msm_alltrans, fromstate="State 1", newdata=msm_preddata, maxt=1)
+matlines(pr_th2$time,
+         pr_th2[, grep("^pstate", names(pr2))],
+         type = "l",
+         lwd  = 2,
+         lty  = 2,
+         col  = mycolor[c(2,4, 1)])
 
-#Compute transition specific hazard estimates
-msf <- msfit(msm_alltrans, newdata=msm_preddata, trans=tmat)
+# legend for states (colours)
+legend("right",
+       legend = c("Alive w/o recurrence", "Recurrence", "Death"),
+       col    = mycolor[c(2,4, 1)],
+       lty    = 1,
+       lwd    = 2,
+       bty    = "n")
 
-#Final probability states and expected time
-
-
-
-#Probability in state
-prob.msm <- probtrans(msm_alltrans, predt=0)
-
-#Expected time in each state
-msm_preddata <- data.frame(
-  trt = c(0,1),
-  extent = c(0,0),
-  node4 = c(0,0)
-)
+# legend for models (linetypes)
+legend(3.25,0.35,
+       legend = c("Control", "Treatment"),
+       lty    = c(1, 2),
+       lwd    = 2,
+       col    = "black",
+       bty    = "n")
 
 ```
-
-
-## Practical exercises
-
-Put here

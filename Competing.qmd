@@ -15,6 +15,21 @@ knitr::opts_chunk$set(
 )
 ```
 
+## Learning objectives
+
+::: callout-note
+By the end of this lecture, you should be able to:
+
+-   Define a **competing risk** and explain how it differs from traditional non-informative censoring.
+-   Evaluate the three main analytical approaches to competing risks: **Combined analysis** (time-to-first-event), **marginal analysis** (cause-specific hazards), and **competing risk analysis** (cumulative incidence).
+-   Contrast the "real-world" probability captured by the **Cumulative Incidence Function (CIF)** with the overestimation bias produced by the naive Kaplan-Meier estimator.
+-   Understand when to use of the **Sub-distribution hazard (Fine-Gray framework)** as opposed to the **Cause-specific hazard**
+-   Interpret differences in the **risk set** ("at-risk" pool) between models
+-   Compare groups statistically using the classical log-rank test for cause-specific hazards and the **Gray test** for differences in cumulative incidence functions.
+-   Implement competing risk models in R, utilising packages like `cmprsk`, `tidycmprsk`, and `mstate` to estimate CIFs and fit Fine-Gray sub-distribution proportional hazards models.
+-   Validate **model assumptions** for the Fine-Gray model, including proportional sub-distribution hazards and the independence of administrative censoring.
+:::
+
 ## What is a competing risk?
 
 A **competing risk** is an event that "competes" with your primary event of interest. Its occurrence **precludes the event of interest from ever happening**.
@@ -484,7 +499,7 @@ km_PD %>%
 The results from the above analyses are summarised in the table below for comparison of cumulative incidences with the naïve KM estimates:
 
 | Time (months) | Any Event $1-S(t)$ | KM Progression $\hat{F}_1^{n}$ | KM Death $\hat{F}_2^{n}$ | CIF Progression $\hat{F}_1(t)$ | CIF Death $\hat{F}_2(t)$ |
-|:----------:|:----------:|:----------:|:----------:|:----------:|:----------:|
+|:--:|:--:|:--:|:--:|:--:|:--:|
 | 5 | 0.675 | 0.612 | 0.161 | 0.561 | 0.114 |
 | 10 | 0.791 | 0.725 | 0.239 | 0.652 | 0.139 |
 | 15 | 0.826 | 0.744 | 0.320 | 0.665 | 0.161 |

@@ -32,7 +32,7 @@ Day 1: Thursday 26th Feb
 | 2:00 - 2:50 | [Parametric survival models](Parametric.qmd) | Maarit |
 | 2:50 - 3:00 | Break |  |
 | 3:00 - 3:50 | [Flexible parametric survival models](Flexible1.qmd) | Maarit |
-| 3:50 - 4.00 | Wrap-up | Maarit |
+| 3:50 - 4.00 | [Wrap-up](WrapupD1.qmd) | Maarit |
 
 Day 2: Friday 27th Feb
 
@@ -46,12 +46,12 @@ Day 2: Friday 27th Feb
 | 1:15 - 2:50 | [Multi-state modelling](Multistate.qmd) | Nicole |
 | 2:50 - 3:00 | Break |  |
 | 3:00 - 3:50 | [Multi-state modelling (continued)](Multistate.qmd) | Nicole |
-| 3:50 - 4.00 | Wrap-up | Maarit |
+| 3:50 - 4.00 | [Wrap-up](WrapupD2.qmd) | Maarit |
 
 ## Facilitators
 
 |  |  |
-|--------------------|----------------------------------------------------|
+|---------------------|---------------------------------------------------|
 | ![](https://github.com/NicoleDeLaMata/PreWorkshop_AdvancedSurvival/blob/Webpage/NicoleD.webp?raw=true){width="350"} | Dr [Nicole De La Mata](https://profiles.sydney.edu.au/nicole.delamata) is a senior lecturer in biostatistics at the University of Sydney. Her expertise lies in establishing data linkage studies and using these to apply advanced statistical models to understand patient journeys and complex clinical scenarios. Her work has broadly aimed to improve health service quality and efficiency to translate into better and more equitable patient outcomes. She has a special interest in multi-state modelling and competing risks models. |
 | ![](https://github.com/NicoleDeLaMata/PreWorkshop_AdvancedSurvival/blob/Webpage/FarzanehB.webp?raw=true){width="350"} | Dr [Farzaneh Boroumand](https://profiles.sydney.edu.au/farzaneh.boroumand) is a Lecturer in Biostatistics at the Sydney School of Public Health and a senior biostatistician at the Centre for Kidney Research, Westmead Hospital. She is passionate about transforming complex statistical concepts into clear, practical insights and designing interactive learning experiences that help postgraduate students apply biostatistics confidently in real-world health research. Her research focuses on survival analysis, causal inference, and chronic kidney disease, collaborating with clinicians and multidisciplinary teams to improve patient outcomes. |
 | ![](https://github.com/NicoleDeLaMata/PreWorkshop_AdvancedSurvival/blob/Webpage/MaaritL.webp?raw=true){width="350"} | Associate Professor [Maarit Laaksonen](https://profiles.sydney.edu.au/maarit.laaksonen) is an Associate Professor in Biostatistics in the Sydney School of Public Health. She leads national and international data linkage projects evaluating the determinants of the future burden of cancer with the aim of improving cancer prevention, early detection and outcomes. Maarit has a strong interest in the development and application of disease burden measures, survival models and the impact of competing risks on health outcomes. |

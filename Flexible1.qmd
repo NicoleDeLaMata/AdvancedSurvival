@@ -15,73 +15,138 @@ knitr::opts_chunk$set(
 )
 ```
 
+## Learning objectives
+
+::: callout-note
+By the end of this lecture, you should be able to:
+
+- Define the **flexible parametric survival model** (Royston-Parmar) and explain how 
+it bridges the gap between standard parametric models and the semi-parametric Cox model.
+- Understand and evaluate the **key advantages** of using splines in survival analysis
+- Explain the mathematical role of **restricted cubic splines (RCS)**
+- Justify the use of the **log-time transformation ($\log(t)$)** 
+- Identify how flexible parametric models relate to **standard parametric models**
+- Implement flexible parametric models in R using the `flexsurvspline` function, 
+including fitting models with **time-dependent effects** when proportional hazards 
+assumptions are violated.
+- Compare model fit using statistical criteria such as AIC, BIC, and the 
+Likelihood Ratio Test, as appropriate, to determine the **optimal number of knots** 
+for a given dataset.
+  
+:::
+
 ## What is a flexible parametric survival model?
 
-While standard parametric models are useful, they are often limited by rigid assumptions about the shape of the hazard function. Flexible parametric models, famously introduced by **Patrick Royston and Catherine Parmar in 2002**, were developed to bridge the gap between these standard models (like the Weibull) and semi-parametric approaches like Cox proportional hazards model. As parametric model, they provide a fully defined mathematical formula for the entire survival curve, allowing for easy extrapolation and absolute risk measures. As a Cox model, they are flexible enough to fit almost any data shape.
+While standard parametric models are useful, they are often limited by rigid 
+assumptions about the shape of the hazard function. Flexible parametric models, 
+famously introduced by **Patrick Royston and Catherine Parmar in 2002**, were 
+developed to bridge the gap between these standard models (like the Weibull) 
+and semi-parametric approaches like Cox proportional hazards model. As parametric
+model, they provide a fully defined mathematical formula for the entire survival 
+curve, allowing for easy extrapolation and absolute risk measures. As a Cox model,
+they are flexible enough to fit almost any data shape.
 
-The flexibility in these models comes from the use of **restricted cubic splines** (polynomials) to model the log-cumulative hazard or log-hazard function rather than the hazard itself. Rather than assuming a simple linear trend, the model uses these splines joined at specific **'knots'** to capture complex, irregular, or multi-modal hazard shapes that simpler models would miss.
+The flexibility in these models comes from the use of **restricted cubic splines** 
+(polynomials) to model the log-cumulative hazard or log-hazard function rather 
+than the hazard itself. Rather than assuming a simple linear trend, the model 
+uses these splines joined at specific **'knots'** to capture complex, irregular, 
+or multi-modal hazard shapes that simpler models would miss.
 
-Unlike piecewise models, which require splitting data into arbitrary time intervals, flexible parametric models provide smooth, continuous estimates of both survival and hazard functions.
+Unlike piecewise models, which require splitting data into arbitrary time intervals, 
+flexible parametric models provide smooth, continuous estimates of both survival 
+and hazard functions.
 
-While 'flexible parametric model' is the broad category for any parametric model that uses splines, the Royston-Parmar (RP) model is the most famous implementation of this idea.
+While 'flexible parametric model' is the broad category for any parametric model 
+that uses splines, the Royston-Parmar (RP) model is the most famous implementation 
+of this idea.
 
-------------------------------------------------------------------------
+---
 
 ## Why use flexible parametric survival models?
 
 **Key advantages of flexible parametric models**
 
--   **Wider hazard variety:** Beyond the other benefits of parametric models, flexible parametric models can capture a wider range of hazard shapes (and thus biological realities) than standard parametric models
--   **Time-dependent effects:** Often the standard choice when **proportional hazards fail**, as they easily allow for time-dependent effects (e.g., the impact of a treatment changes over the duration of the study)
--   **Absolute measures and extrapolation:** Because they are fully parametric, they allow for extrapolation and calculation of **absolute measures of effect** (like absolute risks and rates or life expectancy) which are difficult to obtain from Cox models.
+- **Wider hazard variety:** Beyond the other benefits of parametric models, 
+flexible parametric models can capture a wider range of hazard shapes 
+(and thus biological realities) than standard parametric models
+- **Time-dependent effects:** Often the standard choice when **proportional hazards fail**, 
+as they easily allow for time-dependent effects (e.g., the impact of a treatment 
+changes over the duration of the study)
+- **Absolute measures and extrapolation:** Because they are fully parametric, they 
+allow for extrapolation and calculation of **absolute measures of effect** 
+(like absolute risks and rates or life expectancy) which are difficult to 
+obtain from Cox models.
 
 Flexible parametric models are thus a good methodological choice when:
 
-**1. The hazard function is complex and of interest:** When $h(t)$ is non-monotonic, simpler models may fail to capture the nuance
+**1. The hazard function is complex and of interest:** When $h(t)$ is non-monotonic, 
+simpler models may fail to capture the nuance
 
-**2. A single hazard ratio fails to capture the complete clinical story:**: The HR is a summary measure; it doesn't tell how risk evolves over time
+**2. A single hazard ratio fails to capture the complete clinical story:**: The HR
+is a summary measure; it doesn't tell how risk evolves over time
 
-**3. The proportional hazars assumption is violated or inappropriate:** Flexible parametric models allow for non-proportional hazards and time-dependent effects
+**3. The proportional hazars assumption is violated or inappropriate:** Flexible
+parametric models allow for non-proportional hazards and time-dependent effects
 
-------------------------------------------------------------------------
+---
 
 ## Key concepts in flexible parametric models
 
 **Polynomials**
 
-The foundation of flexibility starts with high-order functions. **Polynomials** can be used to model a **non-linear function**. A **cubic polynomial** can model a non-linear function using the form:
+The foundation of flexibility starts with high-order functions. **Polynomials** 
+can be used to model a **non-linear function**. A **cubic polynomial** can model 
+a non-linear function using the form:
 
 $$y_i = \beta_0 + \beta_1x_i + \beta_2x_i^2 + \beta_3x_i^3$$
 
 **Splines**
 
-When a single polynomial is too rigid to fit the entire range of data, we use **splines**. They are a series of polynomials, essentially **piecewise polynomials**. **Cubic splines are piecewise cubic polynomials**. They are thus flexible mathematical functions composed of several polynomial segments joined together at specific time points called **knots**. Each segment models a specific time interval, allowing for local flexibility.
+When a single polynomial is too rigid to fit the entire range of data, we use 
+**splines**. They are a series of polynomials, essentially **piecewise polynomials**.
+**Cubic splines are piecewise cubic polynomials**. They are thus flexible mathematical 
+functions composed of several polynomial segments joined together at specific time 
+points called **knots**. Each segment models a specific time interval, allowing 
+for local flexibility. 
 
 **Restricted cubic splines (RCS)**
 
-Restricted cubic splines, also known as **natural splines**, are the "gold standard" for flexible parametric modelling because they add necessary constraints:
+Restricted cubic splines, also known as **natural splines**, are the "gold standard" 
+for flexible parametric modelling because they add necessary constraints:
 
--   **Continuity:** They are defined to be continuous at the knots.
--   **Smoothness:** They have continuous first and second derivatives at the knots (i.e., no sharp 'corners').
--   **Linear Constraints:** They are constrained to be linear beyond the *boundary knots*.
--   **Boundary Placement:** Boundary knots are typically placed at the minimum and maximum of the (uncensored) event times to prevent erratic behavior at the ends of the data.
+-  **Continuity:** They are defined to be continuous at the knots.
+- **Smoothness:** They have continuous first and second derivatives at the knots 
+(i.e., no sharp 'corners').
+- **Linear Constraints:** They are constrained to be linear beyond the *boundary knots*.
+- **Boundary Placement:** Boundary knots are typically placed at the minimum and 
+maximum of the (uncensored) event times to prevent erratic behavior at the ends 
+of the data.
 
-By forcing the spline function to be linear at the tails (before the first knot and after the last knot), we avoid the common issue where polynomials 'fly off' to infinity in areas where we have very little data.
+By forcing the spline function to be linear at the tails (before the first knot 
+and after the last knot), we avoid the common issue where polynomials 'fly off' 
+to infinity in areas where we have very little data.
 
 **Knot placement and number of knots**
 
-The flexibility of the model is determined by the placement and number of knots. *Internal Knots* are usually placed at equally spaced centiles of the distribution of event times. For example, if using one internal knot, it is typically placed at the median survival time. Choosing the number of knots (denoted as $k$) involves a trade-off between capturing detail and avoiding overfitting.
+The flexibility of the model is determined by the placement and number of knots.
+*Internal Knots* are usually placed at equally spaced centiles of the distribution 
+of event times. For example, if using one internal knot, it is typically placed 
+at the median survival time. Choosing the number of knots (denoted as $k$) 
+involves a trade-off between capturing detail and avoiding overfitting.
 
-------------------------------------------------------------------------
+---
 
 ## Spline function and basis calculation
 
-The flexibility of a restricted cubic spline is derived from its **basis functions**. Let $x$ be a function of time — typically $x = \log(t)$.
+The flexibility of a restricted cubic spline is derived from its **basis functions**. 
+Let $x$ be a function of time — typically $x = \log(t)$.
 
 **Notation and knots**
 
--   **Boundary knots:** $k_{min}$ and $k_{max}$ represent the minimum and maximum of the log event times.
--   **Internal knots:** $k_1, \cdots, k_m$ represent the location of $m \ge 0$ internal knots, with $k_j$ representing the location of the $j^{th}$ internal knot.
+- **Boundary knots:** $k_{min}$ and $k_{max}$ represent the minimum and maximum 
+of the log event times.
+- **Internal knots:** $k_1, \cdots, k_m$ represent the location of $m \ge 0$ 
+internal knots, with $k_j$ representing the location of the $j^{th}$ internal knot.
 
 **The spline function**
 
@@ -91,132 +156,206 @@ $$s(x,\gamma) = \gamma_0 + \gamma_1 x + \sum_{j=1}^{m} \gamma_{j+1} v_j(x)$$
 
 **Calculating the basis functions**
 
-For each internal knot $k_j$, the $j^{th}$ **basis function** $v_j(x)$ is calculated using a combination of cubic terms:
+For each internal knot $k_j$, the $j^{th}$ **basis function** $v_j(x)$ is calculated 
+using a combination of cubic terms:
 
-$$v_j(x) = (x - k_j)^3_+ - \lambda_j(x - k_{min})^3_+ + (\lambda_j - 1)(x - k_{max})^3_+$$ *Key components:*
+$$v_j(x) = (x - k_j)^3_+ - \lambda_j(x - k_{min})^3_+ + (\lambda_j - 1)(x - k_{max})^3_+$$
+*Key components:*
 
--   **The truncated power function:** The term $(x - k)_+^3$ equals $(x - k)^3$ if $x > k$, and $0$ if $x \leq k$.
--   **The weighting factor (**$\lambda_j$): This is calculated based on the distance between the knots:
+- **The truncated power function:** The term $(x - k)_+^3$ equals $(x - k)^3$ if 
+$x > k$, and $0$ if $x \leq k$.
+- **The weighting factor ($\lambda_j$):** This is calculated based on the distance 
+between the knots:
 
 $$\lambda_j = \frac{k_{max} - k_j}{k_{max} - k_{min}}$$
 
-::: callout-important
+::: {.callout-important}
+
 **Why the weighting factor matters**
 
-The $\lambda_j$ factor is what makes the cubic spline **restricted**. It is mathematically engineered to force the cubic ($x^3$) and quadratic ($x^2$) components of the function to sum to zero beyond the boundary knots. This ensures that the model remains **linear** at the tails, preventing unstable predictions where data is sparse.
+The $\lambda_j$ factor is what makes the cubic spline **restricted**. It is 
+mathematically engineered to force the cubic ($x^3$) and quadratic ($x^2$) 
+components of the function to sum to zero beyond the boundary knots. This ensures 
+that the model remains **linear** at the tails, preventing unstable predictions 
+where data is sparse.
+
 :::
 
-------------------------------------------------------------------------
+---
 
 ## How do flexible parametric models work?
 
 **Integration into regression**
 
-Regression splines are highly versatile because they can be incorporated into any regression model that utilises a **linear predictor**. This allows us to move beyond rigid assumptions while maintaining a familiar framework.
+Regression splines are highly versatile because they can be incorporated into 
+any regression model that utilises a **linear predictor**. This allows us to move 
+beyond rigid assumptions while maintaining a familiar framework.
 
 **The scale of modelling**
 
-While splines can be used to model either the log-hazard or the log-cumulative hazard function, most flexible parametric models (such as the Royston-Parmar model) focus on the **log-cumulative hazard**:
+While splines can be used to model either the log-hazard or the log-cumulative 
+hazard function, most flexible parametric models (such as the Royston-Parmar model) 
+focus on the **log-cumulative hazard**:
 
--   **Monotonicity:** It is mathematically easier for a cubic spline to fit a smooth, monotonically increasing curve like the cumulative hazard.
--   **Stability:** Estimating the cumulative hazard often leads to more stable numerical estimation compared to the instantaneous hazard.
+- **Monotonicity:** It is mathematically easier for a cubic spline to fit a smooth, 
+monotonically increasing curve like the cumulative hazard.
+- **Stability:** Estimating the cumulative hazard often leads to more stable 
+numerical estimation compared to the instantaneous hazard.
 
 **The importance of the log-time transformation**
 
-In these models, it is generally superior to use $\log(t)$ rather than raw time ($t$). This transformation serves two critical purposes:
+In these models, it is generally superior to use $\log(t)$ rather than raw time 
+($t$). This transformation serves two critical purposes:
 
--   **1. Distributional balancing:** As survival times are often positively skewed, the log transformation 'compresses' the long right tail of survival distributions (where events are sparse) and 'stretches' the early period (where many events typically occur).
--   **2. Improved Extrapolation:** A linear trend on the log-time scale is more biologically and statistically plausible for extrapolation beyond the boundary knots compared to a linear trend on the raw time scale.
+- **1. Distributional balancing:** As survival times are often positively skewed, 
+the log transformation 'compresses' the long right tail of survival distributions 
+(where events are sparse) and 'stretches' the early period (where many events 
+typically occur).
+- **2. Improved Extrapolation:** A linear trend on the log-time scale is more 
+biologically and statistically plausible for extrapolation beyond the boundary 
+knots compared to a linear trend on the raw time scale.
 
-::: callout-note
+::: {.callout-note}
+
 ### Why using $\log(t)$ is important?
 
-Using $\log(t)$ ensures that the 'restricted' part of our cubic spline (the linear tail) behaves predictably. Extrapolating a linear trend in log-time is equivalent to a Weibull-like tail, which is a standard and safe assumption in survival analysis.
+Using $\log(t)$ ensures that the 'restricted' part of our cubic spline (the linear 
+tail) behaves predictably. Extrapolating a linear trend in log-time is equivalent 
+to a Weibull-like tail, which is a standard and safe assumption in survival analysis.
+
 :::
 
-------------------------------------------------------------------------
+---
 
 ## Review: The Weibull model
 
-Royston and Parmar designed their flexible parametric model as a direct extension of the Weibull model. They used the Weibull model because of its relationship with the log-cumulative hazard that is linear with log-time.
+Royston and Parmar designed their flexible parametric model as a direct extension 
+of the Weibull model. They used the Weibull model because of its relationship with 
+the log-cumulative hazard that is linear with log-time.
 
-Before diving into Royston-Parmar model, let's recall the framework of the Weibull model:
+Before diving into Royston-Parmar model, let's recall the framework of the Weibull 
+model: 
 
--   **Survival function:** $$S(t) = \exp(-\lambda t^\gamma)$$
+* **Survival function:** $$S(t) = \exp(-\lambda t^\gamma)$$
 
--   **Log cumulative hazard:** $$\log(-\log(S(t))) = \log(H(t)) = \log(\lambda) + \gamma \log(t)$$ $\rightarrow$ This is a **linear function** of $\log(t)$.
+* **Log cumulative hazard:**
+    $$\log(-\log(S(t))) = \log(H(t)) = \log(\lambda) + \gamma \log(t)$$
+    $\rightarrow$ This is a **linear function** of $\log(t)$.
 
--   **Introducing covariates gives:** $$\log(H(t|x_i)) = \log(\lambda) + \gamma \log(t) + x_i \beta$$
+* **Introducing covariates gives:** $$\log(H(t|x_i)) = \log(\lambda) + \gamma \log(t) + x_i \beta$$
 
-------------------------------------------------------------------------
+---
 
 ## The Log-cumulative hazard framework in flexible parametric models
 
 The Royston-Parmar model starts with the linear relationship from the Weibull model:
 
-$$\log(H(t)) = \gamma_0 + \gamma_1 \log(t) + x_i \beta$$ It then adds flexibility to it where needed. That is, rather than assuming a strictly linear relationship with $\log(t)$, it uses **restricted cubic splines (RCS)** for $\log(t)$:
+$$\log(H(t)) = \gamma_0 + \gamma_1 \log(t) + x_i \beta$$
+It then adds flexibility to it where needed. That is, rather than assuming a 
+strictly linear relationship with $\log(t)$, it uses **restricted cubic splines (RCS)** 
+for $\log(t)$:
 
 $$\log(H(t)) = \gamma_0 + \gamma_1 \log(t) + \sum_{j=1}^{k} \gamma_{j+1} v_j(log(t)) + x_i \beta$$
 
-Using the Weibull model as a starting point, the flexible parametric models use cubic splines to 'bend' that line into more complex shapes. This allows the model to capture deviations from the Weibull assumption (i.e., when the hazard isn't strictly monotonic).
+Using the Weibull model as a starting point, the flexible parametric models use 
+cubic splines to 'bend' that line into more complex shapes. This allows the model 
+to capture deviations from the Weibull assumption (i.e., when the hazard isn't 
+strictly monotonic).
 
-The complexity of the model is governed by the number of knots ($k$). Adding more knots allows for more 'bends' in the log-cumulative hazard curve.
+The complexity of the model is governed by the number of knots ($k$). Adding more 
+knots allows for more 'bends' in the log-cumulative hazard curve.
 
-------------------------------------------------------------------------
+---
 
 ## Generalisations of flexible parametric models
 
-More generally, in flexible parametric models, a **link function** $g(\cdot)$ transforms the survival function so it can be modelled as a **restricted cubic spline function of log-time**:
+More generally, in flexible parametric models, a **link function** $g(\cdot)$ 
+transforms the survival function so it can be modelled as a 
+**restricted cubic spline function of log-time**:
 
-$$g(S(t|x)) = s(\log(t), \gamma) + x\beta$$ The link function defines the scale on which the spline and covariate effects are additive. The following link functions appear in the Royston-Parmar framework:
+$$g(S(t|x)) = s(\log(t), \gamma) + x\beta$$
+The link function defines the scale on which the spline and covariate effects 
+are additive. The following link functions appear in the Royston-Parmar framework:
 
--   **Complementary log-log:** Typically, we use $g(S(t|x)) = \log(-\log(S(t|x))) = \log(H(t|x))$, the **log-cumulative hazard** which gives a **proportional hazards model**.
--   **Logit:** Using $g(S(t|x_i)) = \log(S(t|x)^{-1} - 1)$, **log-cumulative odds**, gives a **proportional odds model**.
--   **Probit:** Using $g(S(t|x_i)) = \Phi^{-1}(S(t|x))$, the **inverse normal cumulative distribution function (CDF)**, gives a **normal/probit model**.
+- **Complementary log-log:** Typically, we use $g(S(t|x)) = \log(-\log(S(t|x))) = \log(H(t|x))$, 
+the **log-cumulative hazard** which gives a **proportional hazards model**.
+- **Logit:** Using $g(S(t|x_i)) = \log(S(t|x)^{-1} - 1)$, **log-cumulative odds**, 
+gives a **proportional odds model**.
+- **Probit:** Using $g(S(t|x_i)) = \Phi^{-1}(S(t|x))$, the 
+**inverse normal cumulative distribution function (CDF)**, gives a **normal/probit model**.
 
-The normal/probit model (often referred to as the log-normal flexible parametric model) shifts the focus from the hazard rate to the probability of the event occurring by a certain time.
+The normal/probit model (often referred to as the log-normal flexible parametric 
+model) shifts the focus from the hazard rate to the probability of the event 
+occurring by a certain time.
 
-If we assume linearity with log-time (0 internal knots), we are back to a standard parametric model, i.e., Weibull model, log-logistic model, and log-normal model covered before.
+If we assume linearity with log-time (0 internal knots), we are back to a standard 
+parametric model, i.e., Weibull model, log-logistic model, and log-normal model
+covered before.
 
-Adding internal knots allows the cubic splines to 'bend' the log-time relationship, accommodating hazards that do not follow these strict parametric shapes.
+Adding internal knots allows the cubic splines to 'bend' the log-time relationship, 
+accommodating hazards that do not follow these strict parametric shapes.
 
-::: callout-important
-The choice of link function determines the underlying framework and the 'baseline' distribution the model reverts to if **0 internal knots** are used:
+::: {.callout-important}
 
-| Link Function $g(S(t))$ | Model Type           | Reverts to (0 knots) |
-|:------------------------|:---------------------|:---------------------|
-| $\log(-\log(S(t)))$     | Proportional Hazards | **Weibull**          |
-| $\log(S(t)^{-1} - 1)$   | Proportional Odds    | **Log-logistic**     |
-| $\Phi^{-1}(1 - S(t))$   | Normal/Probit        | **Log-normal**       |
+The choice of link function determines the underlying framework and the 'baseline' 
+distribution the model reverts to if **0 internal knots** are used:
+
+| Link Function $g(S(t))$ | Model Type | Reverts to (0 knots) | In `flexsurvspline` |
+| :--- | :--- | :--- |
+| $\log(-\log(S(t)))$ | Proportional Hazards | **Weibull** | `scale = hazard`|
+| $\log(S(t)^{-1} - 1)$ | Proportional Odds | **Log-logistic** | `scale = odds`|
+| $\Phi^{-1}(1 - S(t))$ | Normal/Probit | **Log-normal** | `scale = normal` |
+
 :::
 
-------------------------------------------------------------------------
+
+---
 
 ## Modelling time-dependent effects
 
-Flexible parametric models include the effect of time as covariates in the linear predictor, so time-dependent effects can be included by fitting interactions between the covariate of interest and the covariates defining the effect of time:
+Flexible parametric models include the effect of time as covariates in the linear 
+predictor, so time-dependent effects can be included by fitting interactions 
+between the covariate of interest and the covariates defining the effect of time:
 
 $$g(S(t|x)) = s(\log(t), \gamma) + x\beta + s(\log(t), \delta) \cdot x$$
 
-For any time-dependent effect there is thus an interaction between the covariate and the spline variables.
+For any time-dependent effect there is thus an interaction between the covariate
+and the spline variables.
 
-This allows the effect of covariates to vary over time, which is a universal feature of flexible parametric models that allows us to move beyond restrictive assumptions:
+This allows the effect of covariates to vary over time, which is a universal 
+feature of flexible parametric models that allows us to move beyond restrictive 
+assumptions:
 
--   **In PH models:** Relaxes the proportional hazards assumption (gives Non-PH).
--   **In PO models:** Relaxes the proportional odds assumption (gives Non-PO).
--   **In Probit/AFT models:** Allows the acceleration factor to vary over time.
+- **In PH models:** Relaxes the proportional hazards assumption (gives Non-PH).
+- **In PO models:** Relaxes the proportional odds assumption (gives Non-PO).
+- **In Probit/AFT models:** Allows the acceleration factor to vary over time.
 
-It is important to think about why the effect might be time-dependent. Is it due to true causal effect or perhaps just due to unobserved frailty.
+It is important to think about why the effect might be time-dependent. Is it
+due to true causal effect or perhaps just due to unobserved frailty.
+
 
 ## Data example: Fitting a flexible parametric model
 
-In practice, R packages like [flexsurv](https://cran.r-project.org/web/packages/flexsurv/vignettes/flexsurv.pdf) or [rstpm2](https://www.rdocumentation.org/packages/rstpm2/versions/1.7.1) handle the estimation process.
+In practice, R packages like [flexsurv](https://cran.r-project.org/web/packages/flexsurv/vignettes/flexsurv.pdf) 
+or [rstpm2](https://www.rdocumentation.org/packages/rstpm2/versions/1.7.1) handle
+the estimation process.
+
+
+### Data example 1: Gehan leukaemia data
+
+We will first practise fitting flexible parametric models to the same leukaemia
+data we used for fitting standard parametric models.
 
 **Flexible parametric proportional hazards model**
 
-We can fit flexible parametric proportional hazards model using [flexsurvspline](https://www.rdocumentation.org/packages/flexsurv/versions/2.3.2/topics/flexsurvspline) function from the [flexsurv](https://cran.r-project.org/web/packages/flexsurv/vignettes/flexsurv.pdf) package, by specifying `scale = hazard`.
+We can fit flexible parametric proportional hazards model using 
+[flexsurvspline](https://www.rdocumentation.org/packages/flexsurv/versions/2.3.2/topics/flexsurvspline) 
+function from the
+[flexsurv](https://cran.r-project.org/web/packages/flexsurv/vignettes/flexsurv.pdf) 
+package, by specifying `scale = hazard`.
 
-First, fitting flexible parametric proportional hazards model with 0 knots ($k = 0$) shows that it reverts back to Weibull model:
+First, fitting flexible parametric proportional hazards model with 0 knots ($k = 0$)
+shows that it reverts back to Weibull model:
 
 ```{r,warning=FALSE}
 
@@ -257,10 +396,12 @@ print(surv_wei1$loglik)
 print(surv_spline_PH_0$loglik)
 
 ```
+You can see that their log-likelihoods are the same and the parameters are the 
+same except for the `scale` parameter that is reported on a different scale 
+(log(0.0464) = -3.0707).
 
-You can see that their log-likelihoods are the same and the parameters are the same except for the `scale` parameter that is reported on a different scale (log(0.0464) = -3.0707).
-
-`Flexsurvspline` output can also be converted into the Weibull AFT parameters in the following way:
+`Flexsurvspline` output can also be converted into the Weibull AFT parameters
+in the following way:
 
 ```{r,warning=FALSE}
 
@@ -285,7 +426,8 @@ print(my_weibull_params)
 
 ```
 
-Similarly, we can fit flexible parametric proportional hazards model with 1, 2, or 3 knots, varying the $k$:
+Similarly, we can fit flexible parametric proportional hazards model with 1, 2,
+or 3 knots, varying the $k$:
 
 ```{r,warning=FALSE}
 
@@ -313,16 +455,24 @@ print(surv_spline_PH_3)
 
 ```
 
+
 ## How many knots to use?
 
-The flexible parametric models are usually not nested and can be compared using the AIC and BIC:
+The flexible parametric models are usually not nested and can be compared using 
+the AIC and BIC:
 
--   If the improvement in fit (likelihood) is greater than the penalty for the new parameter, the AIC/BIC decreases (model with more knots is better)
--   If the improvement in fit is marginal and does not justify the extra parameter, t he AIC/BIC increases (model with fewer knots is better)
+- If the improvement in fit (likelihood) is greater than the penalty for the new 
+parameter, the AIC/BIC decreases (model with more knots is better)
+- If the improvement in fit is marginal and does not justify the extra parameter, t
+he AIC/BIC increases (model with fewer knots is better)
 
-From the above outputs, we can see that the AIC increases with each model and additional knot, hence supporting standard Weibull model as the optimal model fit in these data.
+From the above outputs, we can see that the AIC increases with each model and 
+additional knot, hence supporting standard Weibull model as the optimal model fit
+in these data.
 
-Note that as the Weibull model is nested within the flexible parametric proportional hazards model, we can also use the likelihood ratio test to determine which model provides a better fit for the data:
+Note that as the Weibull model is nested within the flexible parametric proportional 
+hazards model, we can also use the likelihood ratio test to determine which model 
+provides a better fit for the data:
 
 ```{r,warning=FALSE}
 
@@ -339,3 +489,222 @@ lrtest(surv_spline_PH_1, surv_wei1)
 ```
 
 Note also that the default knot positions have been shown to work fairly well.
+
+
+### Data example 2: Breast cancer data
+
+In this data example, we will use breast cancer data, available in the 
+`flexsurv` package as `bc`. This dataset contains survival data for 686 patients 
+with primary node positive breast cancer from the German Breast Cancer Study Group 
+(1984–1989). 
+
+We can load the [bc](https://www.rdocumentation.org/packages/flexsurv/versions/2.3.2/topics/bc)
+data and familiarise ourselves with it:
+
+```{r,warning=FALSE}
+
+# make sure you have installed the skimr and janitor packages
+# install.packages("skimr")
+# install.packages("janitor")
+# load the skimr package
+library(skimr) # for skim() function
+library(janitor) # for tabyl() function
+
+data(bc) # load the breast cancer data
+head(bc) # display the first few rows
+skim(bc)
+tabyl(bc$censrec)
+
+```
+This dataset includes the following variables:
+
+- `rectime`: Recurrence-free survival time in days, i.e., time from the start of
+follow-up (diagnosis/surgery) to recurrence or death.
+
+- `recyrs`: Recurrence-free survival time in years.
+
+- `censrec`: Vital status/censoring indicator (1 = dead/recurrence, 0 = censored)
+
+- `group`: A 3-level prognostic factor with levels "Good", "Medium", and "Poor". 
+This factor is based on the number of positive lymph nodes and is from on a 
+regression model developed by Sauerbrei and Royston (1999).
+
+Let's plot the Kaplan-Meier survival curve, cumulative hazard and hazard for these
+data:
+
+```{r,warning=FALSE}
+
+# make sure you have installed the muhaz package
+# install.packages("muhaz")
+# load the muhaz package
+library(muhaz) # for plotting hazard
+
+bc_km <- survfit(Surv(recyrs, censrec) ~ group, data = bc)
+cols <- c("seagreen", "orange", "firebrick")
+
+par(mfrow = c(1, 3))
+
+plot(bc_km, col = cols, main = "1. Survival (KM)", xlab = "Time", ylab = "S(t)")
+legend("bottomleft", legend = c("Good", "Medium", "Poor"), col = cols, lwd = 2, bty = "n")
+
+plot(bc_km, fun = "cumhaz", col = cols, main = "2. Cumulative Hazard", xlab = "Time", ylab = "H(t)")
+
+# Fit the hazard with boundary correction
+# 'min.grid' and 'max.grid' define where the estimation starts and ends
+haz_good <- muhaz(bc$recyrs[bc$group == "Good"], bc$censrec[bc$group == "Good"], max.time = 6)
+haz_med  <- muhaz(bc$recyrs[bc$group == "Medium"], bc$censrec[bc$group == "Medium"], max.time = 6)
+haz_poor <- muhaz(bc$recyrs[bc$group == "Poor"], bc$censrec[bc$group == "Poor"], max.time = 6)
+
+# Plot the first one, then add the others with 'lines'
+plot(haz_good, col = cols[1], main = "3. Hazard Rates", xlab = "Time", ylab = "h(t)", ylim = c(0, max(haz_poor$haz)))
+lines(haz_med, col = cols[2])
+lines(haz_poor, col = cols[3])
+
+```
+
+We can now see from the hazard plot that the hazards are not monotonic like in 
+the Weibull model and that the "Poor" prognostic group has a much 
+sharper, earlier peak in risk compared to the "Good" group. If the  proportional 
+hazards assumption held, the hazard for the "Poor" group would be a constant 
+multiple of the hazard for the Good group across the entire follow-up. Instead, 
+the gap between the groups changes, being very wide in the first 2-3 years 
+and then begins to narrow.
+
+We can try to fit a Cox proportional hazards model to these data and test the
+proportional hazards assumption:
+
+```{r,warning=FALSE}
+
+bc_cox <- coxph(Surv(recyrs, censrec) ~ group, data = bc)
+summary(bc_cox)
+cox.zph(bc_cox)
+
+```
+We can see a significant p-value (0.017), indicating that the proportional hazards 
+assumption was violated.
+
+Flexible parametric models allow you to relax the proportional hazards assumption
+and allow for time-dependent effects. We can fit a flexible parametric model with
+time-dependent effect, by adding a term `gamma1(group)` to the model, and compare 
+different amount of knots:
+
+```{r,warning=FALSE}
+
+bc_sp1 <- flexsurvspline(Surv(recyrs, censrec) ~ group + gamma1(group), 
+                         data = bc, k = 1, scale = "hazard")
+bc_sp1
+
+bc_sp2 <- flexsurvspline(Surv(recyrs, censrec) ~ group + gamma1(group), 
+                         data = bc, k = 2, scale = "hazard")
+bc_sp2
+
+bc_sp3 <- flexsurvspline(Surv(recyrs, censrec) ~ group + gamma1(group), 
+                         data = bc, k = 3, scale = "hazard")
+bc_sp3
+
+AIC(bc_sp1)
+AIC(bc_sp2)
+AIC(bc_sp3)
+
+BIC(bc_sp1)
+BIC(bc_sp2)
+BIC(bc_sp3)
+
+```
+While adding additional knots reduces AIC slightly, the additional parameters 
+increase BIC significantly, so we choose the model with 1 knot.
+
+Now the hazard ratio varies over time and the $\exp(est)$ of the interaction term 
+tells us the 'speed' and 'direction' of that move. If it's less than 1, the groups 
+are becoming more similar over time; if it's greater than 1, they are diverging.
+Here, at year 1, the "Poor" group has 13.1 times and the "Medium" group 4.3 times 
+the risk of the "Good" group. However, for every unit increase in log-time, those 
+risk ratios drop by 50% and 35% (multiplied by 0.5 and 0.65), respectively. This 
+suggests that the difference between the groups is greatest early on and diminishes 
+as time passes.
+
+
+Note that we can also allow *all* the spline parameters to vary with the covariate.
+This would be an equivalent of a 'stratified' Cox model:
+
+```{r,warning=FALSE}
+
+bc_sp4 <- flexsurvspline(Surv(recyrs, censrec) ~ group + gamma1(group) + gamma2(group), 
+                         data = bc, k = 1, scale = "hazard")
+bc_sp4
+
+```
+In this case this does not improve the model fit.
+
+We can plot the fitted flexible parametric model survival curve $\hat{S}(t)$ 
+by prognostic group directly over the respective Kaplan-Meier (KM) curves:
+
+```{r,warning=FALSE}
+
+# Plot 
+plot(bc_sp1, 
+     type = "survival", 
+     ci = FALSE, 
+     col = "blue",
+     main = "Time-dependent flexible parametric model", 
+     lwd = 1,
+     xlab = "Time (years)",
+     ylab = "Recurrence-free survival" )
+
+```
+We can see that it fits quite well.
+
+We can also plot the fitted flexible parametric model hazards $\hat{h}(t)$ 
+by prognostic group over the kernel density estimates:
+
+```{r,warning=FALSE}
+
+# Plot 
+plot(bc_sp1, 
+     type = "hazard", 
+     ci = FALSE, 
+     col = "blue", 
+     main = "Time-dependent flexible parametric model", 
+     lwd = 1,
+     xlab = "Time (years)",
+     ylab = "Hazard",
+     ylim = c(0, 0.50)) 
+
+```
+
+We can again see that the fit is quite good.
+
+We can also plot the fitted flexible parametric model cumulative hazards $\hat{H}(t)$ 
+by prognostic group over the cumulative hazards:
+
+```{r,warning=FALSE}
+
+# Plot 
+plot(bc_sp1, 
+     type = "cumhaz", 
+     ci = FALSE, 
+     col = "blue", 
+     main = "Time-dependent flexible parametric model", 
+     lwd = 1,
+     xlab = "Time (years)",
+     ylab = "Cumulative hazard") 
+
+```
+
+Again the fit is good.
+
+
+::: {.callout-tip}
+### Student exercise
+
+Try fitting:
+
+- 1. Parametric models that may be suitable and allow for time-dependent
+effects to these data 
+- 2. Flexible parametric models with proportional odds assumption 
+to these data 
+
+Compare their fit to the flexible parametric model with time-dependent effects 
+fitted above.
+
+:::

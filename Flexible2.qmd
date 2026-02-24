@@ -24,3 +24,50 @@ By the end of this lecture, you should be able to:
 -   Use **cause-specific approach** to fit flexible parametric survival models
 -   Interpret **transition-specific hazard ratios** for covariate effects
 :::
+
+## Flexible parametric & competing risks
+
+We have learnt about [flexible parametric survival models](Flexible1.qmd) and [competing risks approach](Competing.qmd). Let's now apply competing risks approach, similar to what we have learnt from fitting cause-specific Cox models, to flexible parametric survival models.
+
+## Worked example
+
+We have produced simulated data on 300 individuals who can experience cardiovascular death (`state==2`) or other death (`state==3`), and the remainder have been censored (`state==0`).
+
+```{r}
+#load libraries
+library(readr)
+library(mstate)
+library(dplyr)
+library(tidyverse)
+
+#Read in data
+cvd_death <- read_csv("https://raw.githubusercontent.com/NicoleDeLaMata/AdvancedSurvival/refs/heads/Data/cvd_death.csv")
+
+#Tablulate events
+table(cvd_death$state)
+```
+
+Let's now run our data through `msprep` from the mstate package. We need to define our transition matrix and we will subsequently see how our data creates new observation rows for each individual, censoring for the other possible outcome that wasn't observed and creating a `trans` variable.
+
+```{r}
+#Transition matrix - 2 death outcomes
+tmat <- transMat(x = list(c(2,3), c(), c()), names=c("Alive", "CVD death", "Other death"))
+tmat
+
+#Minor adjustments to data prep
+cvd_death <- cvd_death %>% 
+  mutate(time_cvdd=time,
+         time_othd=time,
+         status_cvdd=case_when(
+         state==2 & status==1 ~ 1,
+         TRUE ~ 0
+         ),
+         status_othd=case_when(
+         state==3 & status==1 ~ 1,
+         TRUE ~ 0
+         ),)
+
+#Reshape using msprep
+cvd_death_msp <- msprep(data=cvd_death, trans=tmat, time=c(NA, "time_cvdd", "time_othd"), status=c(NA, "status_cvdd", "status_othd"), keep=c("age", "cvd", "diab", "sex", "ses"))
+```
+
