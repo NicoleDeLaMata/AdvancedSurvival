@@ -82,7 +82,7 @@ Flexible parametric models are thus a good methodological choice when:
 **1. The hazard function is complex and of interest:** When $h(t)$ is non-monotonic, 
 simpler models may fail to capture the nuance
 
-**2. A single hazard ratio fails to capture the complete clinical story:**: The HR
+**2. A single hazard ratio fails to capture the complete clinical story:** The HR
 is a summary measure; it doesn't tell how risk evolves over time
 
 **3. The proportional hazars assumption is violated or inappropriate:** Flexible
@@ -129,7 +129,7 @@ to infinity in areas where we have very little data.
 **Knot placement and number of knots**
 
 The flexibility of the model is determined by the placement and number of knots.
-*Internal Knots* are usually placed at equally spaced centiles of the distribution 
+*Internal knots* are usually placed at equally spaced centiles of the distribution 
 of event times. For example, if using one internal knot, it is typically placed 
 at the median survival time. Choosing the number of knots (denoted as $k$) 
 involves a trade-off between capturing detail and avoiding overfitting.
@@ -279,8 +279,10 @@ are additive. The following link functions appear in the Royston-Parmar framewor
 
 - **Complementary log-log:** Typically, we use $g(S(t|x)) = \log(-\log(S(t|x))) = \log(H(t|x))$, 
 the **log-cumulative hazard** which gives a **proportional hazards model**.
+
 - **Logit:** Using $g(S(t|x_i)) = \log(S(t|x)^{-1} - 1)$, **log-cumulative odds**, 
 gives a **proportional odds model**.
+
 - **Probit:** Using $g(S(t|x_i)) = \Phi^{-1}(S(t|x))$, the 
 **inverse normal cumulative distribution function (CDF)**, gives a **normal/probit model**.
 
@@ -380,20 +382,20 @@ leukdata$treat <- factor(leukdata$treat, levels = c("control", "6-MP"))
 # WEIBULL PH MODEL
 
 # 1. Fitting the Weibull model using flexsurv package
-surv_wei1 <- flexsurvreg( Surv(time, cens) ~ treat, data = leukdata, dist = "weibullPH")
-print(surv_wei1)
+wei_PH <- flexsurvreg( Surv(time, cens) ~ treat, data = leukdata, dist = "weibullPH")
+wei_PH
 
 # 2. Fitting the flexible parametric proportional hazards model with 0 internal knots
 # k = 0 means only boundary knots exist, making it a linear model on the log-log scale
-surv_spline_PH_0 <- flexsurvspline(Surv(time, cens) ~ treat, 
+spline_PH_0 <- flexsurvspline(Surv(time, cens) ~ treat, 
                                 data = leukdata, 
                                 k = 0, 
                                 scale = "hazard")
-print(surv_spline_PH_0)
+spline_PH_0
 
 # 3. Compare log-Likelihoods
-print(surv_wei1$loglik)
-print(surv_spline_PH_0$loglik)
+print(wei_PH$loglik)
+print(spline_PH_0$loglik)
 
 ```
 You can see that their log-likelihoods are the same and the parameters are the 
@@ -408,8 +410,8 @@ in the following way:
 convert_spline_to_weibull <- function(spline_model) {
   # Extract gamma coefficients
   # gamma0 is the intercept, gamma1 is the slope of log(t)
-  g0 <- surv_spline_PH_0$res["gamma0", "est"]
-  g1 <- surv_spline_PH_0$res["gamma1", "est"]
+  g0 <- spline_model$res["gamma0", "est"]
+  g1 <- spline_model$res["gamma1", "est"]
   
   # Transformation logic
   weibull_shape <- g1
@@ -421,7 +423,7 @@ convert_spline_to_weibull <- function(spline_model) {
   ))
 }
 
-my_weibull_params <- convert_spline_to_weibull(fit_spline_0k)
+my_weibull_params <- convert_spline_to_weibull(spline_PH_0)
 print(my_weibull_params)
 
 ```
@@ -433,25 +435,25 @@ or 3 knots, varying the $k$:
 
 # Fitting the flexible parametric proportional hazards model with 
 # 1 internal knot
-surv_spline_PH_1 <- flexsurvspline(Surv(time, cens) ~ treat, 
+spline_PH_1 <- flexsurvspline(Surv(time, cens) ~ treat, 
                                 data = leukdata, 
                                 k = 1, 
                                 scale = "hazard")
-print(surv_spline_PH_1)
+spline_PH_1
 
 # 2 internal knots
-surv_spline_PH_2 <- flexsurvspline(Surv(time, cens) ~ treat, 
+spline_PH_2 <- flexsurvspline(Surv(time, cens) ~ treat, 
                                 data = leukdata, 
                                 k = 2, 
                                 scale = "hazard")
-print(surv_spline_PH_2)
+spline_PH_2
 
 # 3 internal knots
-surv_spline_PH_3 <- flexsurvspline(Surv(time, cens) ~ treat, 
+spline_PH_3 <- flexsurvspline(Surv(time, cens) ~ treat, 
                                 data = leukdata, 
                                 k = 3, 
                                 scale = "hazard")
-print(surv_spline_PH_3)
+spline_PH_3
 
 ```
 
@@ -463,8 +465,8 @@ the AIC and BIC:
 
 - If the improvement in fit (likelihood) is greater than the penalty for the new 
 parameter, the AIC/BIC decreases (model with more knots is better)
-- If the improvement in fit is marginal and does not justify the extra parameter, t
-he AIC/BIC increases (model with fewer knots is better)
+- If the improvement in fit is marginal and does not justify the extra parameter, 
+the AIC/BIC increases (model with fewer knots is better)
 
 From the above outputs, we can see that the AIC increases with each model and 
 additional knot, hence supporting standard Weibull model as the optimal model fit
@@ -484,11 +486,23 @@ library(lmtest)
 # Likelihood Ratio Test
 
 # It is recommended to list the most complex model first
-lrtest(surv_spline_PH_1, surv_wei1)
+lrtest(spline_PH_1, wei_PH)
 
 ```
 
 Note also that the default knot positions have been shown to work fairly well.
+
+
+::: {.callout-tip}
+### Student exercise
+
+Try fitting flexible parametric models with proportional odds assumption 
+(`scale = odds`) or normal assumption (`scale = normal`) to these data. Compare
+the model fit with 0 knots with the log-logistic parametric model and log-normal 
+parametric model we fit before and compare the model fit with with different number
+of knots.
+
+:::
 
 
 ### Data example 2: Breast cancer data
@@ -577,7 +591,9 @@ proportional hazards assumption:
 
 bc_cox <- coxph(Surv(recyrs, censrec) ~ group, data = bc)
 summary(bc_cox)
-cox.zph(bc_cox)
+ph_test <- cox.zph(bc_cox)
+ph_test
+plot(ph_test)
 
 ```
 We can see a significant p-value (0.017), indicating that the proportional hazards 
@@ -610,6 +626,9 @@ BIC(bc_sp1)
 BIC(bc_sp2)
 BIC(bc_sp3)
 
+# This will calculate the actual hazard rates for each group at different times
+# summary(bc_sp1, newdata = data.frame(group = c("Good", "Medium", "Poor")), type = "hazard")
+
 ```
 While adding additional knots reduces AIC slightly, the additional parameters 
 increase BIC significantly, so we choose the model with 1 knot.
@@ -617,11 +636,11 @@ increase BIC significantly, so we choose the model with 1 knot.
 Now the hazard ratio varies over time and the $\exp(est)$ of the interaction term 
 tells us the 'speed' and 'direction' of that move. If it's less than 1, the groups 
 are becoming more similar over time; if it's greater than 1, they are diverging.
-Here, at year 1, the "Poor" group has 13.1 times and the "Medium" group 4.3 times 
-the risk of the "Good" group. However, for every unit increase in log-time, those 
-risk ratios drop by 50% and 35% (multiplied by 0.5 and 0.65), respectively. This 
-suggests that the difference between the groups is greatest early on and diminishes 
-as time passes.
+Here, at the start of follow-up, the "Poor" group has 13.1 times and the "Medium" 
+group 4.3 times the risk of the "Good" group. However, for every unit increase in 
+log-time, those risk ratios drop by 50% and 35% (multiplied by 0.5 and 0.65), 
+respectively. This suggests that the difference between the groups is greatest 
+early on and diminishes as time passes.
 
 
 Note that we can also allow *all* the spline parameters to vary with the covariate.
