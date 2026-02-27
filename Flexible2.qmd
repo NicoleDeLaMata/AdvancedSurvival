@@ -31,6 +31,8 @@ We have learnt about [flexible parametric survival models](Flexible1.qmd) and [c
 
 ## Worked example
 
+### Data set up
+
 We have produced simulated data on 300 individuals who can experience cardiovascular death (`state==2`) or other death (`state==3`), and the remainder have been censored (`state==0`).
 
 ```{r}
@@ -39,6 +41,7 @@ library(readr)
 library(mstate)
 library(dplyr)
 library(tidyverse)
+library(flexsurv)
 
 #Read in data
 cvd_death <- read_csv("https://raw.githubusercontent.com/NicoleDeLaMata/AdvancedSurvival/refs/heads/Data/cvd_death.csv")
@@ -46,6 +49,8 @@ cvd_death <- read_csv("https://raw.githubusercontent.com/NicoleDeLaMata/Advanced
 #Tablulate events
 table(cvd_death$state)
 ```
+
+### msprep data
 
 Let's now run our data through `msprep` from the mstate package. We need to define our transition matrix and we will subsequently see how our data creates new observation rows for each individual, censoring for the other possible outcome that wasn't observed and creating a `trans` variable.
 
@@ -56,7 +61,11 @@ tmat
 
 #Minor adjustments to data prep
 cvd_death <- cvd_death %>% 
-  mutate(time_cvdd=time,
+  mutate(time = case_when(
+        time<=time0 ~ time0+0.01,
+        time>time0 ~ time
+  ),
+         time_cvdd=time,
          time_othd=time,
          status_cvdd=case_when(
          state==2 & status==1 ~ 1,
@@ -65,9 +74,200 @@ cvd_death <- cvd_death %>%
          status_othd=case_when(
          state==3 & status==1 ~ 1,
          TRUE ~ 0
-         ),)
+         ),
+         )
 
 #Reshape using msprep
-cvd_death_msp <- msprep(data=cvd_death, trans=tmat, time=c(NA, "time_cvdd", "time_othd"), status=c(NA, "status_cvdd", "status_othd"), keep=c("age", "cvd", "diab", "sex", "ses"))
+cvd_death_msp <- msprep(data=cvd_death, trans=tmat, time=c(NA, "time_cvdd", "time_othd"), status=c(NA, "status_cvdd", "status_othd"), keep=c("age", "cvd", "diab", "malesex", "ses", "trt"))
 ```
 
+### Fit flexsurvspline
+
+Our data has been prepared in a way that makes it easier for us to fit specific models for each competing event, calling upon the `trans` variable. Below we have fitted 1 internal knots.
+
+```{r}
+#Model factor variables
+cvd_death_msp$ses <- as.factor(cvd_death_msp$ses)
+
+#Age to per 10 years
+cvd_death_msp$age10 <- cvd_death_msp$age/10 #in decades
+
+#Fit separate models for each cause of death
+fs_cvdd <- flexsurvspline(Surv(Tstart, Tstop, status) ~ age10 + cvd + diab + malesex + ses + trt, data=cvd_death_msp, subset=(trans==1), k=1, scale="hazard")
+fs_cvdd
+
+fs_othd <- flexsurvspline(Surv(Tstart, Tstop, status) ~ age10 + cvd + diab + malesex + ses + trt, data=cvd_death_msp, subset=(trans==2), k=1, scale="hazard")
+fs_othd
+
+
+```
+
+We can see the covariates effects differ between those relating to CVD deaths and other deaths. Associated with CVD deaths, we see older age (per 10 years) increases risk of cardiovascular death by nearly 20% (HR: 1.19, 95%CI: 1.05, 1.33), cardiovascular comorbidity by 5 times (HR: 5.09, 95%CI: 3.17, 8.17) and diabetes comorbidity by approximately 50% (HR: 1.56, 95%CI: 1.09, 2.24).
+
+In contrast, associated with other death was older age (per 10 years) by over three times (HR: 3.07, 95%CI: 2.45, 3.84), cardiovascular comorbidity reduced risk by 70% (HR: 0.31, 95%CI: 0.20, 0.49). No other covariates were associated with other death.
+
+### Binding models
+
+Since we have two models, one for each cause of death (CVD death and other death), we can bind these two models together. The benefit of this is being able use functions to produce estimates for each outcome, such as cumulative incidence.
+
+```{r}
+#Define matrix for each transition
+tmat_fsurv <- rbind(c(NA,1,2), c(NA, NA, NA), c(NA, NA, NA))
+tmat_fsurv
+
+#Group models together
+fsurv_2dth <- fmsm(fs_cvdd, fs_othd, trans=tmat_fsurv)
+fsurv_2dth
+
+#AIC for entire model
+AIC(fs_cvdd)+AIC(fs_othd)
+AIC(fsurv_2dth)
+```
+
+### Cumulative hazard
+
+Let's use our models to produce the cumulative hazard. This can be for the reference levels of the covariates (i.e. no covariate effects) or for certain covariate patterns. We will look at the difference between those with cardiovascular comorbidity, and its relation to cardiovascular deaths and other deaths.
+
+```{r}
+
+#New data to estimate on - ref level
+preddata0 <- data.frame(
+  trt = c(0),
+  age10=c(4),
+  cvd=c(0),
+  diab=c(0),
+  malesex=c(0),
+  ses = c("1"))
+
+#Cumulative intensity function
+cum_haz0<- msfit.flexsurvreg(fsurv_2dth, t=seq(0,5,by=0.2), newdata=preddata0, trans=tmat_fsurv)
+
+#New data to estimate on - cvd comorbidity
+preddata1 <- data.frame(
+  trt = c(0),
+  age10=c(4),
+  cvd=c(1),
+  diab=c(0),
+  malesex=c(0),
+  ses = c("1"))
+
+#Cumulative intensity function - cvd comorbidity
+cum_haz1<- msfit.flexsurvreg(fsurv_2dth, t=seq(0,5,by=0.2), newdata=preddata1, trans=tmat_fsurv)
+
+#Store data into one
+ct1 <- cum_haz0$Haz %>% mutate(model = "No cvd comorbid")
+ct2 <- cum_haz1$Haz %>% mutate(model = "Cvd comorbid")
+
+ct_all <- bind_rows(ct1, ct2)
+ct_all <- ct_all %>% 
+  mutate(trans2 = case_when(
+    trans==1 ~ "CVD death",
+    trans==2 ~ "Other death"  ))
+
+#Graph settings
+mycolor <- c("#440154FF","#32648EFF","#21908CFF","#5DC863FF","#DCE318FF","#FFFFFF")
+
+#Plot - stepped
+#| fig-width: 2
+#| fig-height: 3
+ggplot(ct_all,
+       aes(x = time,
+           y = Haz,
+           colour = factor(trans2),
+           linetype = model,
+           group = interaction(trans2, model))) +
+  geom_step(size = 1) +
+  scale_colour_manual(values = mycolor[c(2,4, 1)],
+                      name = "Transition") +
+  scale_linetype_manual(values = c("solid", "dashed"),
+                        name = " ") +
+  labs(x = "Years since enrolment", y = "Cumulative hazard") +
+  theme_minimal()
+
+#Plot - smoothed line
+#| fig-width: 2
+#| fig-height: 3
+ggplot(ct_all,
+       aes(x = time,
+           y = Haz,
+           colour = factor(trans2),
+           linetype = model,
+           group = interaction(trans2, model))) +
+  geom_line(size = 1) +
+  scale_colour_manual(values = mycolor[c(2,4, 1)],
+                      name = "Transition") +
+  scale_linetype_manual(values = c("solid", "dashed"),
+                        name = " ") +
+  labs(x = "Years since enrolment", y = "Cumulative hazard") +
+  theme_minimal()
+
+```
+
+As expected, the pattern of the cumulative hazard is similar to the interpretation of the covariates. The cardiovascular comorbidity greatly increases the risk of cardiovascular death, but not so much other death. We also see the cumulative hazard of cardiovascular death is much greater than other deaths.
+
+### Transition probability
+
+Let's now look at the probability of having CVD death and other death, compared to being alive over follow-up time. You will need to call upon an object from `msfit`, so those specifications will carry onto the probability estimates.
+
+```{r}
+
+#Probabilities in state - ref level
+pr0 <- probtrans(cum_haz0, predt = 0)
+pr0[[1]]
+
+#Probabilities in state - cvd comorbidity
+pr1 <- probtrans(cum_haz1, predt = 0)
+pr1[[1]]
+
+#Store data into one
+pr_none <- pr0[[1]] %>% mutate(model = "No cvd comorbid")
+pr_cvd <- pr1[[1]] %>% mutate(model = "Cvd comorbid")
+
+#Plot of probabilities in state
+#| fig-width: 2
+#| fig-height: 3
+matplot(pr_none$time,
+        pr_none[, grep("^pstate", names(pr_none))],
+        type = "l",
+        lwd  = 2,
+        lty  = 1,
+        xlab = "Years from enrolment",
+        ylab = "Probability in state",
+        col  = mycolor[c(2,4, 1)])
+
+matlines(pr_cvd$time,
+         pr_cvd[, grep("^pstate", names(pr_cvd))],
+         type = "l",
+         lwd  = 2,
+         lty  = 2,
+         col  = mycolor[c(2,4, 1)])
+
+# legend for states (colours)
+legend(0, 0.8,
+       legend = c("Alive", "CVD death", "Other death"),
+       col    = mycolor[c(2,4, 1)],
+       lty    = 1,
+       lwd    = 2,
+       bty    = "n")
+
+# legend for models (linetypes)
+legend(0,0.6,
+       legend = c("No cvd comorbid", "Cvd comorbid"),
+       lty    = c(1, 2),
+       lwd    = 2,
+       col    = "black",
+       bty    = "n")
+
+```
+
+## Data exercise
+
+You have been provided with a [new dataset](https://github.com/NicoleDeLaMata/AdvancedSurvival/blob/Data/competing_2deaths.csv). Use the [coding template](https://github.com/NicoleDeLaMata/AdvancedSurvival/blob/Coding/competingrisk_flexsurv_exercise.R), which includes the variable list, to undertake similar datasteps and analysis above. Produce the:
+
+-   Flexible parametric survival model with 1 internal knot for two causes of death (cardiovascular vs other deaths)
+
+-   Cumulative hazards plot
+
+-   Probability of each cause of death plot
+
+Please refer to the solutions here and R coding here (uploaded following workshop).

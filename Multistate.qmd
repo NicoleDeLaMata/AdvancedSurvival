@@ -6,7 +6,6 @@ format:
     code-overflow: wrap
 toc: true
 toc-depth: 3
-bibliography: references.bib
 ---
 
 ```{r, echo=FALSE}
@@ -186,6 +185,7 @@ Let's start with loading the packages and data
 
 ```{r}
 #Load packages
+library(readr)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
@@ -341,6 +341,7 @@ cdata_na <- cdata %>% select(id, time1, time2, state) %>%
 
 #Nelson-Aalen estimates
 na <- mvna(cdata_na, c("entry", "recur", "death"), tra, "cens")
+na
 
 #Graph settings
 mycolor <- c("#440154FF","#32648EFF","#21908CFF","#5DC863FF","#DCE318FF","#FFFFFF")
@@ -357,6 +358,7 @@ cdata_na$time <- cdata_na$time/365.25
 
 #Nelson-Aalen estimates
 na <- mvna(cdata_na, c("entry", "recur", "death"), tra, "cens")
+na
 
 #Cumulative hazard - days since enrolment
 #| fig-width: 2
@@ -375,7 +377,10 @@ Let's move on to produce Aalen-Johansen estimates.
 ```{r}
 #Aalen-Johansen estimates
 aj0 <- survfit(Surv(time1, time2, state) ~1, data=cdata, id=id) # overall
+aj0
+
 aj1 <- survfit(Surv(time1, time2, state) ~ trt, data=cdata, id=id) # by arm
+aj1
 
 #Graph settings
 mycolor <- c("#440154FF","#32648EFF","#21908CFF","#5DC863FF","#DCE318FF","#FFFFFF")
@@ -411,6 +416,7 @@ print(aj1, rmean= 8, digits=2) #print sojourn time restricted to 8 years
 
 #Adjusted AJ for expected times
 aj2 <- survfit(Surv(time1, time2, state) ~ trt+male, data=cdata, id=id) # by arm
+aj2
 
 #Print expected times
 print(aj2, rmean= 8, digits=2) #print sojourn time restricted to 8 years
@@ -605,14 +611,14 @@ Now, the above has fitted the transitions using the strata() option and specifyi
 covs <- c("trt", "age10", "male", "extent", "node4")
 cdata_long_exp <- expand.covs(cdata_long, covs, longnames=FALSE)
 
-#Fit cox model with transition specific covariat
+#Fit cox model with transition specific covariates
 cfit_tspec_strata <- coxph(Surv(Tstart, Tstop, status) ~ trt.1 + trt.2 + trt.3 + age10.1 + age10.2 + age10.3 + male.1 + male.2 + male.3 + extent.1 + extent.2 + extent.3 + node4.1 + node4.2 + node4.3 + strata(trans),
 data=cdata_long_exp, id=id)
 summary(cfit_tspec_strata)
 
 ```
 
-These coefficient estimates are nearly exactly the same as produced by the coxph() above when state was specified in the Surv() function. 
+These coefficient estimates are nearly exactly the same as produced by the coxph() above when state was specified in the Surv() function.
 
 From the output, we can produce the cumulative hazard against covariate patterns. In this case, we focus on the treatment effect and plot these.
 
@@ -695,7 +701,6 @@ ggplot(df_all,
   labs(x = "Years since enrolment", y = "Cumulative hazard") +
   theme_minimal()
 ```
-
 
 In theory, we can also produce the probability in state from the msfit object. However, we see this is problematic in our scenario as we are warned about negatives. Checking the output, we do see negative values have occurred in the probability in state - which is not expected. This has occurred from incorrectly derived cumulative hazard, so is very problematic and may have arisen from too many parameters with too few events.
 
@@ -786,7 +791,6 @@ legend("top",
 
 ```
 
-
 ### Flexible parametric 'cause specific' survival model
 
 Let's move onto how we can fit flexible parametric survival models for multi-state approach.
@@ -799,17 +803,17 @@ cdata_long$male <- 1*(cdata_long$sex ==1) # 0/1: male
 
 
 #Fit separate models for each transition - as given by msprep
-msm_alive_recur <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==1), k=0, scale="hazard")
+msm_alive_recur <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==1), k=1, scale="hazard")
 msm_alive_recur
 
-msm_alive_death <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==2), k=0, scale="hazard")
+msm_alive_death <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==2), k=1, scale="hazard")
 msm_alive_death
 
-msm_recur_death <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==3), k=0, scale="hazard")
+msm_recur_death <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==3), k=1, scale="hazard")
 msm_recur_death
 ```
 
-We have fitted a separate model for each transition, using the subset option, and each has 2 internal knots. We can use the above to determine the covariate effects for each transition.
+We have fitted a separate model for each transition, using the subset option, and each has 1 internal knots. We can use the above to determine the covariate effects for each transition.
 
 We see that the treatment does reduce hazard of recurrence (HR: 0.60, 95%CI: 0.49, 0.74), but does not affect the hazard of death either from disease-free state (HR: 1.03, 0.53, 1.99) or the recurrence state (HR: 1.07, 95%CI: 0.86, 1.35).
 
@@ -828,7 +832,7 @@ msm_alltrans
 AIC(msm_alltrans)
 ```
 
-We are now able to use the entire transition model to produce other relevant estimates, though it is somewhat more limited than the functions available for flexsurvreg. Below we are able to produce the cumulative transition-specific intensity function (cumulative hazard) for newdata with set covariates. We can only define one covariate set per msfit.flexsurvreg(), so we would need to re-run with alternate covariate pattern to make any comparisons.
+We are now able to use the entire transition model to produce other relevant estimates. Below we are able to produce the cumulative transition-specific intensity function (cumulative hazard) for newdata with set covariates. We can only define one covariate set per msfit.flexsurvreg(), so we would need to re-run with alternate covariate pattern to make any comparisons.
 
 ```{r}
 
@@ -959,6 +963,20 @@ legend(3.25,0.35,
 
 
 
+```
+
+Similar to what was produced from the `coxph()`, we can produce the expected time in each state. From the below, we are predicting for the reference level.
+
+```{r}
+#Expected time in states by 8 years - ref level
+ELOS(prob_instate0,t=8)
+```
+
+Starting from the alive state, there would be 7.12 years expected in the alive state, 0.47 years in the recurrence state and 0.41 years in the death state. These can vary as we vary the covariates included. For example, now including the treatment effect below.
+
+```{r}
+#Expected time in states by 8 years - treatment effect
+ELOS(prob_instate1,t=8)
 ```
 
 ### Flexsurvreg
@@ -1094,3 +1112,253 @@ legend(3.25,0.35,
        bty    = "n")
 
 ```
+
+The expected mean time in each state is similar to our flexible parametric survival model above.
+
+```{r}
+#Expected time in states by 8 years - ref level
+ELOS(prob_para0, t=8)
+```
+
+Starting from the alive state, there would be 7.27 years expected in the alive state, 0.42 years in the recurrence state and 0.31 years in the death state. These can vary as we vary the covariates included. For example, now including the treatment effect below. We see there was more time spent in alive state, and less time in recurrence and death.
+
+```{r}
+#Expected time in states by 8 years - treatment
+ELOS(prob_para1, t=8)
+```
+
+## Transition specific covariates
+
+We have shown above how to run transition specific models, either using `strata(trans)` or `subset(trans==x)`. It's important to understand that fitting with `strata()` does model the joint likelihood, which sometimes can be computationally difficult. However, there is still functionality to allow for transition-specific covariates.
+
+Fitting with `subset(trans==x)` partitions the likelihood, so it will usually fit faster and more easily. This also allows for transition-specific covariates and it is more accessible to make specific changes to each transition model.
+
+Now let's demonstrate how we can fit different covariates for each transition.
+
+For the Cox model, we are able to run the below:
+
+```{r}
+#Cox model with transition specific covariates
+summary(cfit_tspec_strata)
+
+#Remove extent from 1:3 and 2:3
+cfit_tspec_strata_remove <- coxph(Surv(Tstart, Tstop, status) ~ trt.1 + trt.2 + trt.3 + age10.1 + age10.2 + age10.3 + male.1 + male.2 + male.3 + extent.1 + node4.1 + node4.2 + node4.3 + strata(trans),
+data=cdata_long_exp, id=id)
+summary(cfit_tspec_strata_remove)
+
+#Same results when fitting using subset
+cox_alive_recur <- coxph(Surv(Tstart, Tstop, status) ~ trt+age10+male+extent+node4, data=cdata_long, subset=(trans==1), id=id)
+summary(cox_alive_recur)
+  
+cox_alive_death <- coxph(Surv(Tstart, Tstop, status) ~ trt+age10+male+node4, data=cdata_long, subset=(trans==2), id=id)
+summary(cox_alive_death)
+
+cox_recur_death <- coxph(Surv(Tstart, Tstop, status) ~ trt+age10+male+node4, data=cdata_long, subset=(trans==3), id=id)
+summary(cox_recur_death)
+```
+
+For the flexible parametric survival model, we are able to run the below:
+
+```{r}
+#Fit separate models for each transition - as given by msprep
+msm_alive_recur_cov <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt +age10 + male + extent + node4, data=cdata_long, subset=(trans==1), k=1, scale="hazard")
+msm_alive_recur_cov
+
+msm_alive_death_cov <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt +age10 + male + node4, data=cdata_long, subset=(trans==2), k=1, scale="hazard")
+msm_alive_death_cov
+
+msm_recur_death_cov <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt +age10 + male + node4, data=cdata_long, subset=(trans==3), k=1, scale="hazard")
+msm_recur_death_cov
+
+#Define transition matrix
+tmat_flexsurv <- rbind(c(NA,1,2), c(NA, NA, 3), c(NA, NA, NA))
+tmat_flexsurv
+
+#Group transitions together
+msm_alltrans_cov <- fmsm(msm_alive_recur_cov, msm_alive_death_cov, msm_recur_death_cov, trans=tmat_flexsurv)
+msm_alltrans_cov
+```
+
+## Recurrent events
+
+Multi-state models are also applicable to recurrent events. There are two alternate ways to fit the model with recurrent events. You can define a new transition for each recurrence, or you can include a time-varying covariate to capture this information.
+
+::: callout-note
+When should you fit with transition-specific models for each recurrence compared to time-varying covariate with cumulative count of recurrence?
+
+It really depends on the scenario.
+
+-   Few cases with multiple recurrence ➡️ Likely better fit with time-varying covariate
+-   Covariate effects vary for each recurrence ➡️ Consider transition-specific or interaction terms with time-varying covariate
+-   Focus on model fit and assumptions to guide decision
+:::
+
+We will load in synthetic data that captures relapses and remission in opiod users, from entry into study. The published paper is [accessible here](https://journals.sagepub.com/doi/10.1177/0272989X251395679).
+
+### Transition specific to each recurrence
+
+We have provided two forms of the data. The below provides a transition for each recurrence:
+
+![](https://raw.githubusercontent.com/NicoleDeLaMata/AdvancedSurvival/refs/heads/Webpage/recurrence_transition.png)
+
+```{r}
+#Load in transition based recurrence
+opiod_msm <- read_csv("https://raw.githubusercontent.com/NicoleDeLaMata/AdvancedSurvival/refs/heads/Data/opiod_msm.csv")
+
+#Set to factor
+opiod_msm$homeless <- factor(opiod_msm$homeless, levels = c("No", "Yes"))
+
+#Number of transitions
+table(opiod_msm$trans)
+
+#Transition types
+table(opiod_msm$transition, opiod_msm$trans)
+
+#Fit separate models for each transition
+op_relap_1 <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt + homeless, data=opiod_msm, subset=(trans==1), k=1, scale="hazard")
+op_relap_1
+
+op_remiss_1 <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt + homeless, data=opiod_msm, subset=(trans==2), k=1, scale="hazard")
+op_remiss_1
+
+op_relap_2 <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt + homeless, data=opiod_msm, subset=(trans==3), k=1, scale="hazard")
+op_relap_2
+
+op_remiss_2 <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt + homeless, data=opiod_msm, subset=(trans==4), k=1, scale="hazard")
+op_remiss_2
+
+op_relap_3 <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt + homeless, data=opiod_msm, subset=(trans==5), k=1, scale="hazard")
+op_relap_3
+```
+
+By the last transition, we encounter issues with model fit. You can check out the issues by running this code.
+
+```{{r}}
+#Note by this transition, model is having difficulty fitting
+op_remiss_3 <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt + homeless , data=opiod_msm, subset=(trans==6), k=1, scale="hazard")
+op_remiss_3
+
+```
+
+For teaching purposes, let's continue with fitting this transition without any internal knots.
+
+```{r}
+#Note by this transition, model is having difficulty fitting
+op_remiss_3 <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt + homeless , data=opiod_msm, subset=(trans==6), k=0, scale="hazard")
+op_remiss_3
+
+```
+
+Looking at the results, we can see that neither `trt` or `homeless` had any effect on any transition.
+
+We will now join the models together and demonstrate calculation of cumulative hazards.
+
+```{r}
+#Define transition matrix
+op_trans <- rbind(c(NA,1,NA,NA,NA,NA,NA), c(NA,NA,2,NA,NA,NA,NA), c(NA,NA,NA,3,NA,NA,NA),
+                  c(NA,NA,NA,NA,4,NA,NA), c(NA,NA,NA,NA,NA,5,NA), c(NA,NA,NA,NA,NA,NA,6),
+                  c(NA,NA,NA,NA,NA,NA,NA))
+op_trans
+
+#Group transitions together
+op_msm_all <- fmsm(op_relap_1, op_remiss_1, op_relap_2, op_remiss_2, op_relap_3, op_remiss_3, trans=op_trans)
+op_msm_all
+
+#Newdata to predict on - control
+newdata_op <- data.frame(
+  trt = c(0),
+  homeless=as.factor(c("No")))  
+
+#Cumulative transition specific hazard function - control
+chaz_op <- msfit.flexsurvreg(op_msm_all, t=c(1), newdata=newdata_op, trans=op_trans)
+
+#Probability in state - control
+prob_op <- probtrans(chaz_op, predt=0, direction="forward")
+
+#Expected time in states by 1 years
+ELOS(prob_op, t=1)
+
+```
+
+### Time-varying covariate for recurrence
+
+The data for time-varying covariate for recurrence number is provided below.
+
+![](https://raw.githubusercontent.com/NicoleDeLaMata/AdvancedSurvival/refs/heads/Webpage/recurrence_simple.png)
+
+```{r}
+#Load in recurrence with covariate
+opiod <- read_csv("https://raw.githubusercontent.com/NicoleDeLaMata/AdvancedSurvival/refs/heads/Data/opiod.csv")
+
+#Set to factor
+opiod$homeless <- factor(opiod$homeless, levels = c("No", "Yes"))
+
+#Number of transitions
+table(opiod$trans)
+
+#Transition types
+table(opiod$transition, opiod$trans)
+
+```
+
+Now let's fit the model with `relapse` giving the time-varying cumulative number of relapses.
+
+```{r}
+#Fit separate models for each transition
+op_to_1recur <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt + homeless, data=opiod, subset=(trans==1), k=1, scale="hazard")
+op_to_1recur
+
+op_to_allremiss <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt + homeless + relapse, data=opiod, subset=(trans==2), k=1, scale="hazard")
+op_to_allremiss
+
+op_to_allrecur <- flexsurvspline(Surv(Tstart, Tstop, status) ~ trt + homeless + relapse, data=opiod, subset=(trans==3), k=1, scale="hazard")
+op_to_allrecur
+```
+
+Similar to above, `trt` and `homeless` did not have any effect on the transitions. We do see that relapse is associated with the transition from relapse to remission, where those with more relapses were less likely to transition to remission.
+
+We will now join the models together and demonstrate calculation of cumulative hazards.
+
+```{r}
+#Define transition matrix
+op_trans_sim <- rbind(c(NA,1,NA), c(NA,NA,2), c(NA,3,NA))
+op_trans_sim
+
+#Group transitions together
+op_simp <- fmsm(op_to_1recur, op_to_allremiss, op_to_allrecur, trans=op_trans_sim)
+op_simp
+
+#Newdata to predict on - control
+newdata_op_simp <- data.frame(
+  trt = c(0),
+  homeless=as.factor(c("No")),
+  relapse=c(1))  
+
+#Cumulative transition specific hazard function - control
+chaz_op_simp <- msfit.flexsurvreg(op_simp, t=seq(0,5,by=0.5), newdata=newdata_op_simp, trans=op_trans_sim)
+
+#Probability in state - control
+prob_op_simp <- probtrans(chaz_op_simp, predt=0, direction="forward")
+prob_op_simp[[1]]
+
+#Expected time in states by 5 years
+ELOS(prob_op_simp, t=5)
+```
+
+## Data exercise
+
+You have been provided with a [new dataset](https://github.com/NicoleDeLaMata/AdvancedSurvival/blob/Data/waitlist_trans.csv). The state space for this is below.
+
+![](https://raw.githubusercontent.com/NicoleDeLaMata/AdvancedSurvival/refs/heads/Webpage/dataexercise_state.png)
+
+Use the [coding template](https://github.com/NicoleDeLaMata/AdvancedSurvival/blob/Coding/multistate_exercise.R), which includes the variable list, to undertake similar datasteps and analysis above. Produce the:
+
+-   Transition-specific Cox model
+
+-   Transition-specific flexible parametric survival model with 1 internal knot
+
+-   Cumulative hazards plot
+
+-   Probability of each cause of death plot
+
+Please refer to the solutions here and R coding here (uploaded following workshop).
