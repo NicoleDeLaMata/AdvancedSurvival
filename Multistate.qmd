@@ -351,20 +351,8 @@ opar <- par(no.readonly = TRUE)
 #| fig-width: 2
 #| fig-height: 3
 plot(na, lwd=2, col=mycolor[c(2,4, 1)],
-xlab="Days since enrolment", ylab="Cumulative hazard")
-
-#Convert time to years
-cdata_na$time <- cdata_na$time/365.25
-
-#Nelson-Aalen estimates
-na <- mvna(cdata_na, c("entry", "recur", "death"), tra, "cens")
-na
-
-#Cumulative hazard - days since enrolment
-#| fig-width: 2
-#| fig-height: 3
-plot(na, lwd=2, col=mycolor[c(2,4, 1)],
 xlab="Years since enrolment", ylab="Cumulative hazard")
+
 
 ```
 
@@ -1361,4 +1349,4 @@ Use the [coding template](https://github.com/NicoleDeLaMata/AdvancedSurvival/blo
 
 -   Probability of each cause of death plot
 
-Please refer to the solutions here and R coding here (uploaded following workshop).
+Please refer to the solutions [here](https://nicoledelamata.github.io/AdvancedSurvival/multistate_exercise_solutions.html) and R coding [here](https://github.com/NicoleDeLaMata/AdvancedSurvival/blob/Quarto-docs/multistate_exercise_solutions.qmd) (uploaded following workshop).
