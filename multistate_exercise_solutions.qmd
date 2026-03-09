@@ -1,0 +1,312 @@
+---
+title: "Multistate exercise solutions"
+author: "Nicole De La Mata"
+format: html
+editor: visual
+toc: true
+embed-resources: true
+fig-cap-location: bottom
+---
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+## Data description
+
+The dataset comprises of a random sample of real world data of people entering the kidney waitlist to receive a deceased donor transplant. The data has been perturbed and includes the below state space, which ignores deaths. The dataset has not been prepared via msprep, and has been manually prepared to reflect a similar output that msprep would produce (if it allowed for circular transitions).
+
+![](https://raw.githubusercontent.com/NicoleDeLaMata/AdvancedSurvival/refs/heads/Webpage/dataexercise_state.png)
+
+The variables provided include:
+
+id: Unique patient identifier
+
+Tstart: Time point from
+
+Tstop: Time point to
+
+Time: Time of the transition
+
+from: State from (1==Active, 2==Suspended, 3==Transplant)
+
+to: State to (1==Active, 2==Suspended, 3==Transplant)
+
+trans: Transition type (1==from active to suspended, 2==from suspended to active, 3==from active to transplant)
+
+status: Event indicator (1==event occurred, 0==censored)
+
+hospunit: Hospital unit providing care (factor variable)
+
+age: age in years at dialysis start
+
+malesex: indicator for male sex (1==male, 0==female)
+
+late: referral for kidney failure was late (1==late referral, 0==Not late referral)
+
+**Research Question**\
+In this sample of individuals followed during their kidney waitlist process, what is the covariate effects on each transition (i.e. from active to suspended, from suspended to active and from active to death)? Compare results from a transition-specific Cox model and transition-specific flexible parametric survival model. Produce a plot of the cumulative hazards and probability in state from both models.
+
+Consider also creating a time-varying covariate for number of suspensions over time.
+
+## Load data
+
+```{r}
+#-----read data
+#load libraries
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(survival)
+library(mstate)
+library(flexsurv)
+library(mvna)
+library(readr)
+
+
+wt_trans <- read_csv("https://raw.githubusercontent.com/NicoleDeLaMata/AdvancedSurvival/refs/heads/Data/waitlist_trans.csv")
+
+#Create as factor
+wt_trans$hospunit <- factor(wt_trans$hospunit)
+
+```
+
+## Fit transition-specific Cox model
+
+```{r}
+#Fit transition: active to suspended
+cox_active_sus <- coxph(Surv(Tstart, Tstop, status) ~ hospunit + age + malesex + late, data=wt_trans, subset=(trans==1), id=id)
+summary(cox_active_sus)
+
+#Fit transition: suspended to active
+cox_sus_active <- coxph(Surv(Tstart, Tstop, status) ~ hospunit + age + malesex + late, data=wt_trans, subset=(trans==2), id=id)
+summary(cox_sus_active)
+
+#Fit transition: active to transplant
+cox_active_tx <- coxph(Surv(Tstart, Tstop, status) ~ hospunit + age + malesex + late, data=wt_trans, subset=(trans==3), id=id)
+summary(cox_active_tx)
+
+```
+
+-   Active to suspended: No associated covariates.
+
+-   Suspended to active: Hospital unit 3 were more likely to transition (HR: 1.90, 95%CI: 1.22, 2.95) and older age were less likely to transition (HR: 0.98 per year, 95%CI: 0.97, 0.99).
+
+-   Active to transplant: Hospital unit 3 (HR: 1.80, 95%CI: 1.37, 2.37) and males (HR: 1.90, 95%CI: 1.22, 2.95) were more likely to transition. Older age were less likely to transition (HR: 0.99 per year, 95%CI: 0.98, 0.99).
+
+Alternatively, we can fit using the `strata()` option and this should yield the same results as the transition-specific models.
+
+```{r}
+#Expand covariates to fit transition-specific covariates
+wt_trans_exp <- wt_trans %>% 
+  mutate(hospunit.1 = ifelse(trans==1, hospunit, 1),
+         hospunit.2 = ifelse(trans==2, hospunit, 1),
+         hospunit.3 = ifelse(trans==3, hospunit, 1),
+         age.1 = ifelse(trans==1, age, 0),
+         age.2 = ifelse(trans==2, age, 0),
+         age.3 = ifelse(trans==3, age, 0),
+         malesex.1 = ifelse(trans==1, malesex, 0),
+         malesex.2 = ifelse(trans==2, malesex, 0),
+         malesex.3 = ifelse(trans==3, malesex, 0),
+         late.1 = ifelse(trans==1, late, 0),
+         late.2 = ifelse(trans==2, late, 0),
+         late.3 = ifelse(trans==3, late, 0))
+
+#Factor variables
+wt_trans_exp$hospunit.1 <- factor(wt_trans_exp$hospunit.1, levels=c(1,2,3))
+wt_trans_exp$hospunit.2 <- factor(wt_trans_exp$hospunit.2)
+wt_trans_exp$hospunit.3 <- factor(wt_trans_exp$hospunit.3)
+
+#Fit cox model with transition specific covariates
+cox.strata <- coxph(Surv(Tstart, Tstop, status) ~ hospunit.1 + hospunit.2 + hospunit.3 + age.1 + age.2 + age.3 + malesex.1 + malesex.2 + malesex.3 + late.1 + late.2 + late.3 + strata(trans),
+data=wt_trans_exp, id=id)
+summary(cox.strata)
+
+```
+
+For interest, let's look at the PH assumption using either models.
+
+```{r}
+#Proportional hazards test - transition specific
+cox.zph(cox_active_sus)
+cox.zph(cox_sus_active)
+cox.zph(cox_active_tx)
+
+#Proportional hazards test - trans as strata
+cox.zph(cox.strata)
+```
+
+In this case the PH assumption was violated, primarily driven by age in the active to suspended transition model. We should instead consider an alternate model, such as flexible parametric survival model below.
+
+We have provided sample coding below to produce the cumulative hazards and probability in each state. Note that issues do seem to arise in the estimation of the probabilities.
+
+```{r}
+#Newdata to predict on - ref levels
+newdata_0 <- data.frame(
+  trans=1:3,
+  strata=1:3,
+  hospunit.1 = factor(c(1,1,1)),
+  hospunit.2=factor(c(1,1,1)),
+  hospunit.3=factor(c(1,1,1)),
+  age.1 = c(0,0,0),
+  age.2 = c(0,0,0),
+  age.3 = c(0,0,0),
+  malesex.1=c(0,0,0),
+  malesex.2=c(0,0,0),
+  malesex.3 = c(0,0,0),
+  late.1 = c(0,0,0),
+  late.2 = c(0,0,0),
+  late.3=c(4,4,4))  
+
+#Transition matrix
+tmat <- matrix(c(
+  NA, 1, 3,
+  2, NA, NA,
+  NA, NA, NA
+), nrow = 3, byrow = TRUE)
+
+class(tmat) <- "transMat"
+
+#Cumulative hazards - ref levels
+msfit_0 <- msfit(cox.strata, trans=tmat, newdata=newdata_0)
+
+#Plot of cumulative hazards
+#| fig-width: 2
+#| fig-height: 3
+plot(msfit_0, legend=FALSE)
+
+legend(
+  "topleft",
+  legend = c("Active → Suspended", "Suspended → Active", "Active → Transplant"),
+  col = 1:3,
+  lty = 1,
+  lwd = 2,
+  cex=0.7
+)
+
+#Probabilities in state
+pr_0 <- probtrans(msfit_0, predt = 0, variance=FALSE)
+
+#Check output for from entry to recur
+pr_0_est <- pr_0[[1]]
+pr_0_est[1:10, ]
+
+#Plot of probabilities in state
+#| fig-width: 2
+#| fig-height: 3
+matplot(pr_0_est$time,
+        pr_0_est[, grep("^pstate", names(pr_0_est))],
+        type = "l",
+        lwd  = 2,
+        lty  = 1,
+        xlab = "Years from enrolment",
+        ylab = "Probability in state")
+
+# legend for states (colours)
+legend("right",
+       legend = c("Active", "Suspended", "Transplant"),
+       col=1:3,
+       lty    = 1,
+       lwd    = 2,
+       bty    = "n")
+
+```
+
+## Transition-specific flexible parametric survival model with 1 internal knot
+
+We now fit the flexible parametric survival models for each transition, with 1 internal knot.
+
+```{r}
+#Fit separate models for each transition - as given by msprep 
+msm_active_sus <- flexsurvspline(Surv(Tstart, Tstop, status) ~ hospunit + age + malesex + late, data=wt_trans, subset=(trans==1), k=1, scale="hazard") 
+msm_active_sus
+
+msm_sus_active <- flexsurvspline(Surv(Tstart, Tstop, status) ~ hospunit + age + malesex + late, data=wt_trans, subset=(trans==2), k=1, scale="hazard") 
+msm_sus_active
+
+msm_active_tx <- flexsurvspline(Surv(Tstart, Tstop, status) ~ hospunit + age + malesex + late, data=wt_trans, subset=(trans==3), k=1, scale="hazard") 
+msm_active_tx
+```
+
+-   Active to suspended: Hospital unit 2 were less likely to transition (HR: 0.60, 95%CI: 0.49, 0.74).
+
+-   Suspended to active: Hospital unit 2 (HR: 0.60, 95%CI: 0.49, 0.74) and older age (HR: 0.98 per year, 95%CI: 0.97, 0.99) were less likely to transition. Hospital unit 3 were more likely to transition (HR: 1.82, 95%CI: 1.39, 2.38).
+
+-   Active to transplant: Hospital unit 3 (HR: 1.74, 95%CI: 1.32, 2.28) and males (HR: 1.36, 95%CI: 1.11, 1.66) were more likely to transition. Older age were less likely to transition (HR: 0.99 per year, 95%CI: 0.98, 0.99).
+
+We bind these into one object and further produce the cumulative hazard and probability in state.
+
+```{r}
+#Define transition matrix
+tmat2 <- rbind(c(NA,1,3), c(2,NA,NA), c(NA,NA,NA))
+tmat2
+
+#Group transitions together
+flex_mods <- fmsm(msm_active_sus, msm_sus_active, msm_active_tx, trans=tmat2)
+flex_mods
+
+#Newdata to predict on - control
+newdata_f0 <- data.frame(
+  hospunit = as.factor(c(1)),
+  age=c(0),
+  malesex=c(0),
+  late=c(0))  
+
+#Cumulative transition specific hazard function - control
+haz_flexs <- msfit.flexsurvreg(flex_mods, t=seq(0,5,by=0.5), newdata=newdata_f0, trans=tmat2)
+
+#Plot
+plot(haz_flexs)
+
+#Probability in state - control
+prob_flexs <- probtrans(haz_flexs, predt=0, direction="forward")
+
+#Store output
+prob_flexs0 <- prob_flexs[[1]]
+prob_flexs0
+
+#Plot of probabilities in state
+#| fig-width: 2
+#| fig-height: 3
+matplot(prob_flexs0$time,
+        prob_flexs0[, grep("^pstate", names(prob_flexs0))],
+        type = "l",
+        lwd  = 2,
+        lty  = 1,
+        xlab = "Years from enrolment",
+        ylab = "Probability in state")
+
+# legend for states (colours)
+legend("right",
+       legend = c("Active", "Suspended", "Transplant"),
+       col=1:3,
+       lty    = 1,
+       lwd    = 2,
+       bty    = "n")
+
+
+```
+
+We can also quite easily derive the expected time in each state.
+
+```{r}
+#Expected time in states by 5 years
+ELOS(prob_flexs, t=5)
+
+```
+
+::: callout-important
+We have several important things to mention in this analysis
+
+-   PH assumption is violated in Cox models\
+    ➡️ should consider alternate model or addressing PH through other means (e.g. time-varying coefficient)
+-   Regardless, both Cox and flexible parametric survival model have difficulty fitting this multi-state model, which we observed when producing the probability in state\
+    ➡️ this is not driven by PH assumption
+-   What can we do about it? Further exploration of whether we can better fit the model\
+    ➡️ Add time-varying covariate for past transitions to suspensions\
+    ➡️ Consider suspensions must be for a minimum time of *x* months to be considered in model (reduce small frequent suspensions)\
+    ➡️ Consider alternative better fitting models, such as more knots in flexible parametric, or fully parametric model
+:::
